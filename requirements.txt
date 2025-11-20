@@ -1,0 +1,50 @@
+# Stock Analysis Service - Requirements
+# Python 3.9+
+
+# Flask 및 웹 프레임워크
+Flask==2.3.3
+Flask-SQLAlchemy==3.0.5
+Flask-Session==0.5.0
+Werkzeug==2.3.7
+
+# 데이터베이스
+SQLAlchemy==2.0.20
+
+# ElasticSearch
+elasticsearch==7.17.9
+
+# 크롤링
+selenium==4.12.0
+# playwright==1.37.0  # 추후 필요시 활성화
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# OpenAI
+openai==0.28.0
+
+# 스케줄링
+APScheduler==3.10.4
+
+# 메일 발송
+# (표준 라이브러리 smtplib 사용)
+
+# 환경 변수
+python-dotenv==1.0.0
+
+# 보안
+bcrypt==4.0.1
+
+# 유틸리티
+python-dateutil==2.8.2
+pytz==2023.3
+requests==2.31.0
+
+# 개발 및 테스트
+pytest==7.4.2
+pytest-cov==4.1.0
+pytest-flask==1.2.0
+flake8==6.1.0
+black==23.9.1
+
+# WSGI 서버 (배포용)
+gunicorn==21.2.0
