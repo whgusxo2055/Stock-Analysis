@@ -1,0 +1,361 @@
+"""
+뉴스 저장 어댑터
+Phase 2.3 - News Storage Adapter
+
+ElasticSearch를 사용한 뉴스 데이터 저장 및 조회 서비스
+"""
+from typing import Dict, List, Optional
+from datetime import datetime, timedelta
+import logging
+
+from app.utils.elasticsearch_client import get_es_client
+
+logger = logging.getLogger(__name__)
+
+
+class NewsStorageAdapter:
+    """
+    뉴스 데이터 저장/조회 어댑터
+    
+    Phase 3 크롤러와 통합될 서비스 레이어
+    """
+    
+    def __init__(self):
+        """어댑터 초기화"""
+        self.es_client = get_es_client()
+        self._validate_connection()
+    
+    def _validate_connection(self):
+        """ES 연결 검증"""
+        if not self.es_client.is_connected():
+            raise ConnectionError("ElasticSearch 연결 실패")
+        logger.info("NewsStorageAdapter initialized successfully")
+    
+    def save_news(self, news_data: Dict) -> bool:
+        """
+        단일 뉴스 저장
+        
+        Args:
+            news_data (Dict): 뉴스 데이터
+                Required fields:
+                - news_id: 뉴스 고유 ID
+                - ticker_symbol: 종목 코드
+                - title: 제목
+                - content: 내용
+                - published_date: 발행일
+                Optional fields:
+                - company_name: 회사명
+                - url: 뉴스 URL
+                - summary: {ko, en, es, ja} 다국어 요약
+                - sentiment: {classification, score} 감정 분석
+        
+        Returns:
+            bool: 저장 성공 여부
+        """
+        try:
+            # 필수 필드 검증
+            required_fields = ['news_id', 'ticker_symbol', 'title', 'content', 'published_date']
+            for field in required_fields:
+                if field not in news_data:
+                    logger.error(f"Missing required field: {field}")
+                    return False
+            
+            # 크롤링 시간 자동 추가
+            if 'crawled_date' not in news_data:
+                news_data['crawled_date'] = datetime.now().isoformat()
+            
+            # 저장
+            result = self.es_client.index_news(news_data)
+            
+            if result:
+                logger.info(f"News saved successfully: {news_data['news_id']}")
+            else:
+                logger.error(f"Failed to save news: {news_data['news_id']}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error saving news: {e}")
+            return False
+    
+    def bulk_save_news(self, news_list: List[Dict]) -> Dict:
+        """
+        뉴스 벌크 저장 (Phase 3 크롤러 통합용)
+        
+        Args:
+            news_list (List[Dict]): 뉴스 데이터 리스트
+        
+        Returns:
+            Dict: 저장 결과
+                - success: 성공한 문서 수
+                - failed: 실패한 문서 수
+                - errors: 에러 목록
+        """
+        try:
+            if not news_list:
+                logger.warning("Empty news list provided")
+                return {"success": 0, "failed": 0, "total": 0, "errors": []}
+            
+            # 크롤링 시간 자동 추가
+            crawled_time = datetime.now().isoformat()
+            for news in news_list:
+                if 'crawled_date' not in news:
+                    news['crawled_date'] = crawled_time
+            
+            # 벌크 저장
+            success_count = self.es_client.bulk_index_news(news_list)
+            failed_count = len(news_list) - success_count
+            
+            logger.info(f"Bulk save completed: {success_count} success, {failed_count} failed")
+            
+            return {
+                "success": success_count,
+                "failed": failed_count,
+                "total": len(news_list),
+                "errors": []
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in bulk save: {e}")
+            return {
+                "success": 0,
+                "failed": len(news_list) if news_list else 0,
+                "total": len(news_list) if news_list else 0,
+                "errors": [str(e)]
+            }
+    
+    def get_news(self, news_id: str) -> Optional[Dict]:
+        """
+        뉴스 ID로 단일 뉴스 조회
+        
+        Args:
+            news_id (str): 뉴스 ID
+        
+        Returns:
+            Optional[Dict]: 뉴스 데이터 (없으면 None)
+        """
+        try:
+            result = self.es_client.client.get(
+                index=self.es_client.index_name,
+                id=news_id
+            )
+            
+            if result['found']:
+                logger.info(f"News retrieved: {news_id}")
+                return result['_source']
+            else:
+                logger.warning(f"News not found: {news_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error retrieving news {news_id}: {e}")
+            return None
+    
+    def search_news(
+        self,
+        ticker_symbol: Optional[str] = None,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        sentiment: Optional[str] = None,
+        keyword: Optional[str] = None,
+        size: int = 20,
+        page: int = 1
+    ) -> Dict:
+        """
+        뉴스 검색
+        
+        Args:
+            ticker_symbol (str, optional): 종목 코드
+            from_date (str, optional): 시작 날짜 (ISO format)
+            to_date (str, optional): 종료 날짜 (ISO format)
+            sentiment (str, optional): 감정 분류 (positive/negative/neutral)
+            keyword (str, optional): 검색 키워드 (제목+내용)
+            size (int): 페이지당 결과 수
+            page (int): 페이지 번호 (1부터 시작)
+        
+        Returns:
+            Dict: 검색 결과
+                - total: 전체 결과 수
+                - hits: 뉴스 리스트
+                - page: 현재 페이지
+                - size: 페이지 크기
+        """
+        try:
+            # 페이지 계산 (1-based to 0-based)
+            from_ = (page - 1) * size
+            
+            # 키워드 검색 추가
+            if keyword:
+                # 기본 검색에 키워드 검색 추가
+                response = self._search_with_keyword(
+                    keyword=keyword,
+                    ticker_symbol=ticker_symbol,
+                    from_date=from_date,
+                    to_date=to_date,
+                    sentiment=sentiment,
+                    size=size,
+                    from_=from_
+                )
+            else:
+                response = self.es_client.search_news(
+                    ticker_symbol=ticker_symbol,
+                    from_date=from_date,
+                    to_date=to_date,
+                    sentiment=sentiment,
+                    size=size,
+                    from_=from_
+                )
+            
+            total = response['hits']['total']['value']
+            hits = [hit['_source'] for hit in response['hits']['hits']]
+            
+            logger.info(f"Search completed: {total} results found")
+            
+            return {
+                "total": total,
+                "hits": hits,
+                "page": page,
+                "size": size,
+                "pages": (total + size - 1) // size  # 전체 페이지 수
+            }
+            
+        except Exception as e:
+            logger.error(f"Error searching news: {e}")
+            return {
+                "total": 0,
+                "hits": [],
+                "page": page,
+                "size": size,
+                "pages": 0
+            }
+    
+    def _search_with_keyword(
+        self,
+        keyword: str,
+        ticker_symbol: Optional[str] = None,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        sentiment: Optional[str] = None,
+        size: int = 20,
+        from_: int = 0
+    ) -> Dict:
+        """키워드 포함 검색 (내부 메서드)"""
+        query = {"bool": {"must": []}}
+        
+        # 키워드 검색 (제목 + 내용)
+        query["bool"]["must"].append({
+            "multi_match": {
+                "query": keyword,
+                "fields": ["title^2", "content"],  # 제목에 가중치 2배
+                "type": "best_fields"
+            }
+        })
+        
+        # 추가 필터
+        if ticker_symbol:
+            query["bool"]["must"].append({"term": {"ticker_symbol": ticker_symbol}})
+        
+        if sentiment:
+            query["bool"]["must"].append({"term": {"sentiment.classification": sentiment}})
+        
+        if from_date or to_date:
+            date_range = {}
+            if from_date:
+                date_range["gte"] = from_date
+            if to_date:
+                date_range["lte"] = to_date
+            query["bool"]["must"].append({"range": {"published_date": date_range}})
+        
+        response = self.es_client.client.search(
+            index=self.es_client.index_name,
+            query=query,
+            sort=[{"published_date": {"order": "desc"}}],
+            size=size,
+            from_=from_
+        )
+        
+        return response
+    
+    def get_statistics(self, ticker_symbol: str, days: int = 7) -> Dict:
+        """
+        종목별 뉴스 통계
+        
+        Args:
+            ticker_symbol (str): 종목 코드
+            days (int): 기간 (일)
+        
+        Returns:
+            Dict: 통계 데이터
+                - total: 총 뉴스 수
+                - sentiment_distribution: 감정 분포
+                - avg_score: 평균 감정 점수
+        """
+        try:
+            stats = self.es_client.get_statistics(ticker_symbol, days)
+            logger.info(f"Statistics retrieved for {ticker_symbol}: {stats['total']} news")
+            return stats
+        except Exception as e:
+            logger.error(f"Error getting statistics: {e}")
+            return {
+                "total": 0,
+                "sentiment_distribution": [],
+                "avg_score": 0
+            }
+    
+    def delete_news(self, news_id: str) -> bool:
+        """
+        뉴스 삭제
+        
+        Args:
+            news_id (str): 뉴스 ID
+        
+        Returns:
+            bool: 삭제 성공 여부
+        """
+        try:
+            self.es_client.client.delete(
+                index=self.es_client.index_name,
+                id=news_id
+            )
+            logger.info(f"News deleted: {news_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting news {news_id}: {e}")
+            return False
+    
+    def get_latest_news(self, ticker_symbol: str, limit: int = 10) -> List[Dict]:
+        """
+        특정 종목의 최신 뉴스 조회
+        
+        Args:
+            ticker_symbol (str): 종목 코드
+            limit (int): 조회 개수
+        
+        Returns:
+            List[Dict]: 최신 뉴스 리스트
+        """
+        result = self.search_news(
+            ticker_symbol=ticker_symbol,
+            size=limit,
+            page=1
+        )
+        return result['hits']
+
+
+# 싱글톤 인스턴스
+_storage_adapter: Optional[NewsStorageAdapter] = None
+
+
+def get_news_storage() -> NewsStorageAdapter:
+    """
+    NewsStorageAdapter 싱글톤 인스턴스 반환
+    
+    Returns:
+        NewsStorageAdapter: 저장 어댑터 인스턴스
+    """
+    global _storage_adapter
+    
+    if _storage_adapter is None:
+        _storage_adapter = NewsStorageAdapter()
+    
+    return _storage_adapter

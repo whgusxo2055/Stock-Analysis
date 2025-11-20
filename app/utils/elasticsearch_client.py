@@ -217,7 +217,7 @@ class ElasticsearchClient:
         """
         from datetime import timedelta
         
-        to_date = datetime.utcnow()
+        to_date = datetime.now()
         from_date = to_date - timedelta(days=days)
         
         try:
@@ -266,7 +266,7 @@ class ElasticsearchClient:
         """
         from datetime import timedelta
         
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now() - timedelta(days=days)
         
         try:
             response = self.client.delete_by_query(
