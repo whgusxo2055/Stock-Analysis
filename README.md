@@ -137,18 +137,96 @@ python scripts/init_db.py init
 - 관리자 계정: `admin` / `admin123`
 - 샘플 종목: TSLA, AAPL, MSFT, GOOGL, AMZN 등
 
-## 📊 ElasticSearch 인덱스 생성
+## 📊 ElasticSearch 설정
 
-Python 콘솔에서:
+### 1. 인덱스 생성
+
+```bash
+# Docker 환경에서
+docker-compose up -d elasticsearch
+sleep 15  # ES 시작 대기
+
+# 인덱스 생성
+source venv/bin/activate
+python scripts/setup_es_index.py create
+
+# 인덱스 정보 확인
+python scripts/setup_es_index.py info
+```
+
+### 2. ILM 정책 설정
+
+2년(730일) 데이터 보관 정책 적용:
+
+```bash
+# ILM 정책 생성 및 적용
+python scripts/setup_ilm.py setup
+
+# 정책 상태 확인
+python scripts/setup_ilm.py status
+```
+
+ILM 정책 구조:
+- **Hot 단계**: 0일~ (30일 또는 50GB마다 롤오버)
+- **Warm 단계**: 90일~ (샤드 축소, 우선순위 낮춤)
+- **Delete 단계**: 730일(2년) 후 자동 삭제
+
+### 3. 뉴스 저장 어댑터 사용
 
 ```python
-from app.utils.elasticsearch_client import get_es_client
+from app.services import get_news_storage
 
-es_client = get_es_client('http://localhost:9200')
-es_client.create_index()
+storage = get_news_storage()
+
+# 단일 뉴스 저장
+news = {
+    "news_id": "unique_id",
+    "ticker_symbol": "TSLA",
+    "title": "Tesla stock rises",
+    "content": "...",
+    "published_date": "2024-01-15T10:00:00"
+}
+storage.save_news(news)
+
+# 벌크 저장 (크롤러용)
+news_list = [...]
+result = storage.bulk_save_news(news_list)
+
+# 검색
+results = storage.search_news(ticker_symbol="TSLA", size=10)
+
+# 통계
+stats = storage.get_statistics("TSLA", days=7)
 ```
 
 ## 🧪 테스트
+
+### Phase 1 테스트
+
+```bash
+# Phase 1 검증 (기반 인프라)
+pytest test_phase1.py -v
+
+# 6개 테스트: imports, config, logging, app, database, API
+```
+
+### Phase 2 테스트
+
+```bash
+# ElasticSearch 인덱스 매핑 테스트
+pytest tests/test_es_mapping.py -v  # 7개 테스트
+
+# ILM 정책 테스트
+pytest tests/test_ilm.py -v  # 5개 테스트
+
+# 뉴스 저장 어댑터 단위 테스트
+pytest tests/test_news_storage.py -v  # 13개 테스트
+
+# Phase 2 통합 테스트
+pytest tests/test_phase2_integration.py -v  # 4개 테스트
+```
+
+### 모든 테스트 실행
 
 ```bash
 # 모든 테스트 실행
@@ -157,8 +235,8 @@ pytest
 # 커버리지와 함께 실행
 pytest --cov=app --cov-report=html
 
-# 특정 테스트 실행
-pytest tests/test_models.py
+# 특정 디렉토리 테스트
+pytest tests/ -v
 ```
 
 ## 🔍 API 엔드포인트
@@ -204,9 +282,11 @@ pytest tests/test_models.py
 - [x] Docker 환경 구성
 - [x] 로깅 시스템
 
-### Phase 2: 데이터 & 인덱스 (진행 예정)
-- [ ] ElasticSearch 인덱스 및 ILM 정책
-- [ ] 저장 어댑터
+### Phase 2: 데이터 & 인덱스 (완료 ✅)
+- [x] ElasticSearch 인덱스 매핑 (SRS 7.2.1)
+- [x] ILM 정책 구현 (2년 보관, SRS 3.5.3)
+- [x] 뉴스 저장 어댑터 (NewsStorageAdapter)
+- [x] 단위 테스트 (13개) 및 통합 테스트 (4개)
 
 ### Phase 3: 크롤러 MVP
 - [ ] Selenium 설정
@@ -242,5 +322,6 @@ pytest tests/test_models.py
 
 ---
 
-**현재 상태**: Phase 1 완료 ✅  
-**마지막 업데이트**: 2025-11-20
+**현재 상태**: Phase 2 완료 ✅  
+**다음 단계**: Phase 3 (크롤러 MVP)  
+**마지막 업데이트**: 2025-01-20
