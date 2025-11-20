@@ -85,7 +85,11 @@ class ElasticsearchClient:
         }
         
         try:
-            self.client.indices.create(index=self.index_name, body=index_body)
+            self.client.indices.create(
+                index=self.index_name,
+                settings=index_body['settings'],
+                mappings=index_body['mappings']
+            )
             logger.info(f"✓ Index '{self.index_name}' created successfully!")
             return True
         except Exception as e:
@@ -106,7 +110,7 @@ class ElasticsearchClient:
             self.client.index(
                 index=self.index_name,
                 id=news_data.get('news_id'),
-                body=news_data
+                document=news_data
             )
             return True
         except Exception as e:
@@ -190,12 +194,10 @@ class ElasticsearchClient:
         try:
             response = self.client.search(
                 index=self.index_name,
-                body={
-                    "query": query,
-                    "sort": [{"published_date": {"order": "desc"}}],
-                    "size": size,
-                    "from": from_
-                }
+                query=query,
+                sort=[{"published_date": {"order": "desc"}}],
+                size=size,
+                from_=from_
             )
             return response
         except Exception as e:
@@ -221,28 +223,26 @@ class ElasticsearchClient:
         try:
             response = self.client.search(
                 index=self.index_name,
-                body={
-                    "query": {
-                        "bool": {
-                            "must": [
-                                {"term": {"ticker_symbol": ticker_symbol}},
-                                {"range": {"published_date": {
-                                    "gte": from_date.isoformat(),
-                                    "lte": to_date.isoformat()
-                                }}}
-                            ]
-                        }
+                query={
+                    "bool": {
+                        "must": [
+                            {"term": {"ticker_symbol": ticker_symbol}},
+                            {"range": {"published_date": {
+                                "gte": from_date.isoformat(),
+                                "lte": to_date.isoformat()
+                            }}}
+                        ]
+                    }
+                },
+                aggs={
+                    "sentiment_distribution": {
+                        "terms": {"field": "sentiment.classification"}
                     },
-                    "aggs": {
-                        "sentiment_distribution": {
-                            "terms": {"field": "sentiment.classification"}
-                        },
-                        "avg_score": {
-                            "avg": {"field": "sentiment.score"}
-                        }
-                    },
-                    "size": 0
-                }
+                    "avg_score": {
+                        "avg": {"field": "sentiment.score"}
+                    }
+                },
+                size=0
             )
             
             return {
@@ -271,12 +271,10 @@ class ElasticsearchClient:
         try:
             response = self.client.delete_by_query(
                 index=self.index_name,
-                body={
-                    "query": {
-                        "range": {
-                            "crawled_date": {
-                                "lt": cutoff_date.isoformat()
-                            }
+                query={
+                    "range": {
+                        "crawled_date": {
+                            "lt": cutoff_date.isoformat()
                         }
                     }
                 }
