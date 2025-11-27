@@ -46,11 +46,13 @@ def create_app(config_name='development'):
     from app.routes.main import main_bp
     from app.routes.stocks import stocks_bp
     from app.routes.news import news_bp
+    from app.routes.settings import settings_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(stocks_bp)
     app.register_blueprint(news_bp)
+    app.register_blueprint(settings_bp)
     
     # 보안 헤더 추가
     @app.after_request

@@ -453,6 +453,81 @@ class NewsStorageAdapter:
             return 0
 
 
+    def get_recent_news(
+        self,
+        ticker_symbol: str,
+        hours: int = 3
+    ) -> List[Dict]:
+        """
+        최근 N시간 이내의 뉴스 조회 (FR-035)
+        
+        Args:
+            ticker_symbol: 종목 코드
+            hours: 시간 범위 (기본 3시간)
+        
+        Returns:
+            List[Dict]: 뉴스 리스트
+        """
+        try:
+            from_date = (datetime.now() - timedelta(hours=hours)).isoformat()
+            
+            query = {
+                "bool": {
+                    "must": [
+                        {"term": {"ticker_symbol": ticker_symbol}},
+                        {"range": {"published_date": {"gte": from_date}}}
+                    ]
+                }
+            }
+            
+            response = self.es_client.client.search(
+                index=self.news_index,
+                query=query,
+                sort=[{"published_date": {"order": "desc"}}],
+                size=100
+            )
+            
+            hits = [hit['_source'] for hit in response['hits']['hits']]
+            logger.info(f"Found {len(hits)} recent news for {ticker_symbol} in last {hours} hours")
+            return hits
+            
+        except Exception as e:
+            logger.error(f"Error getting recent news for {ticker_symbol}: {e}")
+            return []
+
+    def delete_old_news(self, cutoff_date: datetime) -> int:
+        """
+        오래된 뉴스 삭제 (FR-028)
+        
+        Args:
+            cutoff_date: 기준 날짜 (이전 데이터 삭제)
+        
+        Returns:
+            int: 삭제된 문서 수
+        """
+        try:
+            query = {
+                "range": {
+                    "published_date": {
+                        "lt": cutoff_date.isoformat()
+                    }
+                }
+            }
+            
+            response = self.es_client.client.delete_by_query(
+                index=self.news_index,
+                body={"query": query}
+            )
+            
+            deleted_count = response.get('deleted', 0)
+            logger.info(f"Deleted {deleted_count} old news items before {cutoff_date}")
+            return deleted_count
+            
+        except Exception as e:
+            logger.error(f"Error deleting old news: {e}")
+            return 0
+
+
 # 싱글톤 인스턴스
 _storage_adapter: Optional[NewsStorageAdapter] = None
 
@@ -470,3 +545,46 @@ def get_news_storage() -> NewsStorageAdapter:
         _storage_adapter = NewsStorageAdapter()
     
     return _storage_adapter
+
+
+# 별칭 - 스케줄러에서 사용
+class NewsStorageService:
+    """
+    NewsStorageAdapter의 래퍼 클래스
+    스케줄러 및 이메일 서비스에서 사용
+    """
+    
+    def __init__(self):
+        """초기화"""
+        self._adapter = None
+    
+    def _get_adapter(self) -> NewsStorageAdapter:
+        """지연 초기화"""
+        if self._adapter is None:
+            try:
+                self._adapter = get_news_storage()
+            except Exception as e:
+                logger.error(f"Failed to initialize storage adapter: {e}")
+                raise
+        return self._adapter
+    
+    def get_recent_news(self, ticker: str, hours: int = 3) -> List[Dict]:
+        """최근 N시간 뉴스 조회"""
+        return self._get_adapter().get_recent_news(ticker, hours)
+    
+    def delete_old_news(self, cutoff_date: datetime) -> int:
+        """오래된 뉴스 삭제"""
+        return self._get_adapter().delete_old_news(cutoff_date)
+    
+    def store_news_batch(self, news_list: List[Dict]) -> int:
+        """뉴스 배치 저장"""
+        result = self._get_adapter().bulk_save_news(news_list)
+        return result.get('success', 0)
+    
+    def search_news(self, **kwargs) -> Dict:
+        """뉴스 검색"""
+        return self._get_adapter().search_news(**kwargs)
+    
+    def get_statistics(self, ticker: str, days: int = 7) -> Dict:
+        """통계 조회"""
+        return self._get_adapter().get_statistics(ticker, days)

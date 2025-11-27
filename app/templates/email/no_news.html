@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>No News Update - {{ date }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+            color: white;
+            padding: 30px 25px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .header .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 50px 30px;
+            text-align: center;
+        }
+        
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        .message {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .sub-message {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .stock-list {
+            margin: 25px auto;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        
+        .stock-list-title {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .stock-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+        
+        .stock-chip {
+            display: inline-block;
+            padding: 6px 12px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 15px;
+            font-size: 13px;
+            color: #1a73e8;
+            font-weight: 500;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: #1a73e8;
+            color: white;
+            padding: 14px 28px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            margin-top: 25px;
+        }
+        
+        .cta-button:hover {
+            background: #1557b0;
+        }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 25px;
+            text-align: center;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .footer-note {
+            font-size: 12px;
+            color: #999;
+        }
+        
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .icon {
+                font-size: 48px;
+            }
+            
+            .message {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>📊 Stock Analysis</h1>
+            <p class="subtitle">{{ date }} 뉴스 업데이트</p>
+        </div>
+        
+        <div class="content">
+            <div class="icon">📭</div>
+            
+            <p class="message">
+                {% if language == 'ko' %}
+                    오늘은 새로운 뉴스가 없습니다
+                {% elif language == 'ja' %}
+                    本日は新しいニュースがありません
+                {% else %}
+                    No news updates today
+                {% endif %}
+            </p>
+            
+            <p class="sub-message">
+                {% if language == 'ko' %}
+                    관심 종목에 대한 새로운 뉴스가 발견되면<br>
+                    바로 알려드리겠습니다.
+                {% elif language == 'ja' %}
+                    お気に入り銘柄の新しいニュースが見つかり次第、<br>
+                    すぐにお知らせいたします。
+                {% else %}
+                    We'll notify you as soon as new news<br>
+                    about your tracked stocks is found.
+                {% endif %}
+            </p>
+            
+            {% if tracked_stocks %}
+            <div class="stock-list">
+                <p class="stock-list-title">
+                    {% if language == 'ko' %}
+                        현재 추적 중인 종목
+                    {% elif language == 'ja' %}
+                        現在追跡中の銘柄
+                    {% else %}
+                        Currently Tracked Stocks
+                    {% endif %}
+                </p>
+                <div class="stock-chips">
+                    {% for stock in tracked_stocks[:8] %}
+                    <span class="stock-chip">{{ stock }}</span>
+                    {% endfor %}
+                    {% if tracked_stocks|length > 8 %}
+                    <span class="stock-chip">+{{ tracked_stocks|length - 8 }}개</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <a href="{{ dashboard_url }}" class="cta-button">
+                {% if language == 'ko' %}
+                    대시보드 확인하기
+                {% elif language == 'ja' %}
+                    ダッシュボードを確認
+                {% else %}
+                    Go to Dashboard
+                {% endif %}
+            </a>
+        </div>
+        
+        <div class="footer">
+            <p class="footer-note">
+                {% if language == 'ko' %}
+                    이 이메일은 Stock Analysis Service에서 자동 발송되었습니다.<br>
+                    수신 설정 변경: 대시보드 &gt; 설정 &gt; 알림 설정
+                {% elif language == 'ja' %}
+                    このメールはStock Analysis Serviceから自動送信されました。<br>
+                    受信設定の変更: ダッシュボード &gt; 設定 &gt; 通知設定
+                {% else %}
+                    This email was automatically sent by Stock Analysis Service.<br>
+                    Change notification settings: Dashboard &gt; Settings &gt; Notifications
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</body>
+</html>

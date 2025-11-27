@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Analysis Report - {{ date }}</title>
+    <!--[if mso]>
+    <style type="text/css">
+        table { border-collapse: collapse; }
+        td { padding: 0; }
+    </style>
+    <![endif]-->
+    <style>
+        /* 기본 스타일 - SRS FR-034 준수 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        
+        .email-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+        
+        /* 헤더 스타일 */
+        .header {
+            background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+            color: white;
+            padding: 30px 25px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .header .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        /* 요약 통계 카드 */
+        .stats-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 15px 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            min-width: 100px;
+        }
+        
+        .stat-card .number {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .stat-card .label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .stat-positive .number { color: #34a853; }
+        .stat-negative .number { color: #ea4335; }
+        .stat-neutral .number { color: #666; }
+        .stat-total .number { color: #1a73e8; }
+        
+        /* 종목 섹션 */
+        .stock-section {
+            margin: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: white;
+        }
+        
+        .stock-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .stock-ticker {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a73e8;
+        }
+        
+        .stock-name {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .stock-news-count {
+            margin-left: auto;
+            font-size: 12px;
+            color: #999;
+            background: #e8e8e8;
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+        
+        /* 뉴스 아이템 */
+        .news-item {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .news-item:last-child {
+            border-bottom: none;
+        }
+        
+        .news-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        
+        .news-summary {
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+        
+        .news-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        /* 감성 배지 - SRS FR-034 색상 */
+        .sentiment-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .sentiment-positive {
+            background-color: rgba(52, 168, 83, 0.1);
+            color: #34a853;
+        }
+        
+        .sentiment-negative {
+            background-color: rgba(234, 67, 53, 0.1);
+            color: #ea4335;
+        }
+        
+        .sentiment-neutral {
+            background-color: rgba(153, 153, 153, 0.1);
+            color: #666;
+        }
+        
+        .news-date {
+            font-size: 12px;
+            color: #999;
+        }
+        
+        .news-link {
+            font-size: 13px;
+            color: #1a73e8;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .news-link:hover {
+            text-decoration: underline;
+        }
+        
+        /* 빈 상태 */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        /* 푸터 */
+        .footer {
+            background: #f8f9fa;
+            padding: 25px;
+            text-align: center;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .footer-stats {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        .footer-cta {
+            display: inline-block;
+            background: #1a73e8;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        .footer-cta:hover {
+            background: #1557b0;
+        }
+        
+        .footer-note {
+            font-size: 12px;
+            color: #999;
+        }
+        
+        /* 반응형 - SRS FR-034 모바일 지원 */
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+            }
+            
+            .header {
+                padding: 20px 15px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+            }
+            
+            .stats-container {
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 15px;
+            }
+            
+            .stat-card {
+                flex: 1 1 calc(50% - 8px);
+                min-width: auto;
+                padding: 12px 10px;
+            }
+            
+            .stat-card .number {
+                font-size: 20px;
+            }
+            
+            .stock-section {
+                margin: 15px 10px;
+            }
+            
+            .stock-header {
+                flex-wrap: wrap;
+                padding: 12px 15px;
+            }
+            
+            .stock-news-count {
+                margin-left: 0;
+                margin-top: 5px;
+            }
+            
+            .news-item {
+                padding: 15px;
+            }
+            
+            .news-title {
+                font-size: 15px;
+            }
+            
+            .news-meta {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- 헤더 -->
+        <div class="header">
+            <h1>📊 Stock Analysis Report</h1>
+            <p class="subtitle">{{ user.username }}님의 관심 종목 분석 - {{ date }}</p>
+        </div>
+        
+        <!-- 요약 통계 -->
+        <div class="stats-container" style="display: table; width: 100%; background: #f8f9fa; padding: 20px; border-bottom: 1px solid #eee;">
+            <div style="display: table-row;">
+                <div class="stat-card stat-total" style="display: table-cell; text-align: center; padding: 15px; background: white; border-radius: 8px;">
+                    <div class="number">{{ total_news }}</div>
+                    <div class="label">총 뉴스</div>
+                </div>
+                <div style="display: table-cell; width: 10px;"></div>
+                <div class="stat-card stat-positive" style="display: table-cell; text-align: center; padding: 15px; background: white; border-radius: 8px;">
+                    <div class="number">{{ positive_count }}</div>
+                    <div class="label">호재</div>
+                </div>
+                <div style="display: table-cell; width: 10px;"></div>
+                <div class="stat-card stat-negative" style="display: table-cell; text-align: center; padding: 15px; background: white; border-radius: 8px;">
+                    <div class="number">{{ negative_count }}</div>
+                    <div class="label">악재</div>
+                </div>
+                <div style="display: table-cell; width: 10px;"></div>
+                <div class="stat-card stat-neutral" style="display: table-cell; text-align: center; padding: 15px; background: white; border-radius: 8px;">
+                    <div class="number">{{ neutral_count }}</div>
+                    <div class="label">중립</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 종목별 뉴스 -->
+        {% if news_by_stock %}
+            {% for ticker, news_list in news_by_stock.items() %}
+            <div class="stock-section">
+                <div class="stock-header">
+                    <span class="stock-ticker">{{ ticker }}</span>
+                    <span class="stock-news-count">{{ news_list|length }}건</span>
+                </div>
+                
+                {% if news_list %}
+                    {% for news in news_list %}
+                    <div class="news-item">
+                        <h3 class="news-title">{{ news.title }}</h3>
+                        
+                        <p class="news-summary">
+                            {% if news.summary is mapping %}
+                                {{ news.summary.get(language, news.summary.get('ko', '요약 없음')) }}
+                            {% else %}
+                                {{ news.summary or '요약 없음' }}
+                            {% endif %}
+                        </p>
+                        
+                        <div class="news-meta">
+                            {% set sentiment = news.sentiment or {} %}
+                            {% set classification = sentiment.get('classification', 'Neutral') %}
+                            {% set score = sentiment.get('score', 0) %}
+                            
+                            {% if classification == 'Positive' %}
+                            <span class="sentiment-badge sentiment-positive">
+                                ↗ 호재 (+{{ score }})
+                            </span>
+                            {% elif classification == 'Negative' %}
+                            <span class="sentiment-badge sentiment-negative">
+                                ↘ 악재 ({{ score }})
+                            </span>
+                            {% else %}
+                            <span class="sentiment-badge sentiment-neutral">
+                                → 중립 ({{ score }})
+                            </span>
+                            {% endif %}
+                            
+                            <span class="news-date">
+                                {{ news.published_date[:10] if news.published_date else news.date[:10] if news.date else '' }}
+                            </span>
+                            
+                            <a href="{{ news.url }}" class="news-link" target="_blank">
+                                원문 보기 →
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="empty-state">
+                    <div class="icon">📭</div>
+                    <p>이 종목에 대한 새로운 뉴스가 없습니다.</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="empty-state" style="padding: 60px 20px;">
+            <div class="icon">📭</div>
+            <p style="font-size: 16px;">새로운 뉴스가 없습니다.</p>
+            <p style="font-size: 14px; margin-top: 10px;">다음 보고서에서 만나요!</p>
+        </div>
+        {% endif %}
+        
+        <!-- 푸터 -->
+        <div class="footer">
+            <p class="footer-stats">
+                총 {{ total_news }}건의 뉴스 | 
+                <span style="color: #34a853;">호재 {{ positive_count }}건</span> | 
+                <span style="color: #ea4335;">악재 {{ negative_count }}건</span> | 
+                <span style="color: #666;">중립 {{ neutral_count }}건</span>
+            </p>
+            
+            <a href="{{ dashboard_url }}" class="footer-cta">
+                대시보드에서 자세히 보기 →
+            </a>
+            
+            <p class="footer-note">
+                이 이메일은 Stock Analysis Service에서 자동 발송되었습니다.<br>
+                수신 설정 변경: 대시보드 &gt; 설정 &gt; 알림 설정
+            </p>
+        </div>
+    </div>
+</body>
+</html>
