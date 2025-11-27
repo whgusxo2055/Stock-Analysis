@@ -138,14 +138,15 @@ def get_latest():
                 size=limit
             )
         
-        # 응답 포맷
+        # 응답 포맷 (SRS v1.1)
         results = [{
             'news_id': item.get('_id'),
             'ticker_symbol': item.get('ticker_symbol'),
             'company_name': item.get('company_name'),
             'title': item.get('title'),
             'summary': item.get('summary', {}),
-            'url': item.get('url'),
+            'source_url': item.get('source_url') or item.get('url', ''),
+            'source_name': item.get('source_name', 'Unknown'),
             'published_date': item.get('published_date'),
             'sentiment': item.get('sentiment', {})
         } for item in news]
@@ -213,7 +214,8 @@ def get_history():
             'company_name': item.get('company_name'),
             'title': item.get('title'),
             'summary': item.get('summary', {}),
-            'url': item.get('url'),
+            'source_url': item.get('source_url') or item.get('url', ''),
+            'source_name': item.get('source_name', 'Unknown'),
             'published_date': item.get('published_date'),
             'sentiment': item.get('sentiment', {})
         } for item in news]
@@ -245,8 +247,10 @@ def detail(news_id):
         # 템플릿 필드명 통일
         sentiment_data = news_data.get('sentiment', {})
         if sentiment_data:
-            news_data['sentiment_label'] = sentiment_data.get('label', 'neutral').lower()
-            news_data['sentiment_score'] = sentiment_data.get('score', 0.0)
+            # classification을 label로 변환 (Positive -> positive)
+            classification = sentiment_data.get('classification', 'Neutral')
+            news_data['sentiment_label'] = classification.lower() if classification else 'neutral'
+            news_data['sentiment_score'] = sentiment_data.get('score', 0)
         
         # 다국어 요약
         summary_data = news_data.get('summary', {})
@@ -254,7 +258,11 @@ def detail(news_id):
             news_data['summary_ko'] = summary_data.get('ko', '')
             news_data['summary_en'] = summary_data.get('en', '')
             news_data['summary_ja'] = summary_data.get('ja', '')
-            news_data['summary_zh'] = summary_data.get('zh', '')
+            news_data['summary_es'] = summary_data.get('es', '')
+        
+        # 티커 심볼 배열로 변환
+        ticker = news_data.get('ticker_symbol', '')
+        news_data['ticker_symbols'] = [ticker] if ticker else []
         
         return render_template('news/detail.html', news=news_data)
         
@@ -282,10 +290,13 @@ def get_detail(news_id):
             'title': news.get('title'),
             'content': news.get('content'),
             'summary': news.get('summary', {}),
-            'url': news.get('url'),
+            'source_url': news.get('source_url') or news.get('url', ''),
+            'source_name': news.get('source_name', 'Unknown'),
             'published_date': news.get('published_date'),
             'crawled_date': news.get('crawled_date'),
-            'sentiment': news.get('sentiment', {})
+            'analyzed_date': news.get('analyzed_date'),
+            'sentiment': news.get('sentiment', {}),
+            'metadata': news.get('metadata', {})
         })
         
     except Exception as e:

@@ -97,7 +97,7 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('news.index') }}">
+                        <a class="nav-link" href="{{ url_for('news.news_page') }}">
                             <i class="bi bi-newspaper"></i> 뉴스
                         </a>
                     </li>
@@ -110,7 +110,8 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             {% if session.is_admin %}
-                            <li><a class="dropdown-item" href="#"><i class="bi bi-speedometer2"></i> 관리자</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin.users') }}"><i class="bi bi-people"></i> 사용자 관리</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin.system_status') }}"><i class="bi bi-activity"></i> 시스템 상태</a></li>
                             <li><hr class="dropdown-divider"></li>
                             {% endif %}
                             <li><a class="dropdown-item" href="{{ url_for('settings.settings_page') }}"><i class="bi bi-gear"></i> 설정</a></li>

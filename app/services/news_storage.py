@@ -358,11 +358,11 @@ class NewsStorageAdapter:
             return set()
         
         try:
-            # URL 필드로 검색
+            # source_url 필드로 검색 (SRS v1.1)
             query = {
                 "bool": {
                     "should": [
-                        {"term": {"url.keyword": url}} for url in urls
+                        {"term": {"source_url": url}} for url in urls
                     ],
                     "minimum_should_match": 1
                 }
@@ -372,11 +372,11 @@ class NewsStorageAdapter:
                 index=self.es_client.index_name,
                 query=query,
                 size=len(urls),
-                _source=["url"]
+                _source=["source_url"]
             )
             
             existing_urls = {
-                hit['_source']['url'] 
+                hit['_source'].get('source_url') or hit['_source'].get('url', '')
                 for hit in response['hits']['hits']
             }
             

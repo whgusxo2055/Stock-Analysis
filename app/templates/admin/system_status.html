@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block title %}시스템 상태 - Stock Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+    .admin-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+    }
+    
+    .status-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .status-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #f0f0f0;
+    }
+    
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+    
+    .status-connected {
+        background: rgba(52, 168, 83, 0.1);
+        color: #34a853;
+    }
+    
+    .status-disconnected {
+        background: rgba(234, 67, 53, 0.1);
+        color: #ea4335;
+    }
+    
+    .status-running {
+        background: rgba(26, 115, 232, 0.1);
+        color: #1a73e8;
+    }
+    
+    .status-info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .status-info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .status-label {
+        color: #666;
+        font-weight: 500;
+    }
+    
+    .status-value {
+        color: #333;
+        font-weight: 600;
+    }
+    
+    .refresh-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <div class="container">
+        <h2><i class="bi bi-activity"></i> 시스템 상태 모니터링</h2>
+        <p class="mb-0">실시간 시스템 상태를 확인합니다</p>
+    </div>
+</div>
+
+<div class="container mb-5">
+    <div class="text-end mb-3">
+        <button class="btn btn-primary refresh-btn" onclick="refreshStatus()">
+            <i class="bi bi-arrow-clockwise"></i> 새로고침
+        </button>
+    </div>
+    
+    <!-- ElasticSearch 상태 -->
+    <div class="status-card">
+        <div class="status-header">
+            <h5 class="mb-0"><i class="bi bi-database"></i> ElasticSearch</h5>
+            <span class="status-indicator" id="es-status-badge">
+                <span class="spinner-border spinner-border-sm"></span> 확인 중...
+            </span>
+        </div>
+        <div id="es-status-content">
+            <div class="text-center py-4">
+                <span class="spinner-border text-primary"></span>
+                <p class="mt-2 text-muted">상태를 확인하고 있습니다...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 크롤러 상태 -->
+    <div class="status-card">
+        <div class="status-header">
+            <h5 class="mb-0"><i class="bi bi-robot"></i> 뉴스 크롤러</h5>
+            <span class="status-indicator" id="crawler-status-badge">
+                <span class="spinner-border spinner-border-sm"></span> 확인 중...
+            </span>
+        </div>
+        <div id="crawler-status-content">
+            <div class="text-center py-4">
+                <span class="spinner-border text-primary"></span>
+                <p class="mt-2 text-muted">상태를 확인하고 있습니다...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 이메일 발송 상태 -->
+    <div class="status-card">
+        <div class="status-header">
+            <h5 class="mb-0"><i class="bi bi-envelope"></i> 이메일 발송</h5>
+            <span class="status-indicator" id="email-status-badge">
+                <span class="spinner-border spinner-border-sm"></span> 확인 중...
+            </span>
+        </div>
+        <div id="email-status-content">
+            <div class="text-center py-4">
+                <span class="spinner-border text-primary"></span>
+                <p class="mt-2 text-muted">상태를 확인하고 있습니다...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 스케줄러 상태 -->
+    <div class="status-card">
+        <div class="status-header">
+            <h5 class="mb-0"><i class="bi bi-clock-history"></i> 스케줄러</h5>
+            <span class="status-indicator" id="scheduler-status-badge">
+                <span class="spinner-border spinner-border-sm"></span> 확인 중...
+            </span>
+        </div>
+        <div id="scheduler-status-content">
+            <div class="text-center py-4">
+                <span class="spinner-border text-primary"></span>
+                <p class="mt-2 text-muted">상태를 확인하고 있습니다...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 페이지 로드 시 상태 조회
+document.addEventListener('DOMContentLoaded', function() {
+    refreshStatus();
+});
+
+// 상태 새로고침
+function refreshStatus() {
+    fetch('/admin/api/system-status')
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                updateElasticSearchStatus(result.status.elasticsearch);
+                updateCrawlerStatus(result.status.crawler);
+                updateEmailStatus(result.status.email);
+                updateSchedulerStatus(result.status.scheduler);
+            } else {
+                alert('시스템 상태를 불러오는데 실패했습니다.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('시스템 상태 조회 중 오류가 발생했습니다.');
+        });
+}
+
+// ElasticSearch 상태 업데이트
+function updateElasticSearchStatus(data) {
+    const badge = document.getElementById('es-status-badge');
+    const content = document.getElementById('es-status-content');
+    
+    if (data.status === 'connected') {
+        badge.className = 'status-indicator status-connected';
+        badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> 연결됨';
+    } else {
+        badge.className = 'status-indicator status-disconnected';
+        badge.innerHTML = '<i class="bi bi-x-circle-fill"></i> 연결 끊김';
+    }
+    
+    content.innerHTML = `
+        <div class="status-info-row">
+            <span class="status-label">연결 상태</span>
+            <span class="status-value">${data.status === 'connected' ? '정상' : '오류'}</span>
+        </div>
+        <div class="status-info-row">
+            <span class="status-label">인덱스</span>
+            <span class="status-value">${data.index}</span>
+        </div>
+        <div class="status-info-row">
+            <span class="status-label">저장된 뉴스</span>
+            <span class="status-value">${data.documents.toLocaleString()}건</span>
+        </div>
+    `;
+}
+
+// 크롤러 상태 업데이트
+function updateCrawlerStatus(data) {
+    const badge = document.getElementById('crawler-status-badge');
+    const content = document.getElementById('crawler-status-content');
+    
+    if (data.status === 'success') {
+        badge.className = 'status-indicator status-connected';
+        badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> 정상';
+    } else if (data.status === 'never_run') {
+        badge.className = 'status-indicator status-disconnected';
+        badge.innerHTML = '<i class="bi bi-dash-circle-fill"></i> 미실행';
+    } else {
+        badge.className = 'status-indicator status-disconnected';
+        badge.innerHTML = '<i class="bi bi-x-circle-fill"></i> 오류';
+    }
+    
+    content.innerHTML = `
+        <div class="status-info-row">
+            <span class="status-label">마지막 실행</span>
+            <span class="status-value">${data.last_run ? new Date(data.last_run).toLocaleString('ko-KR') : '없음'}</span>
+        </div>
+        <div class="status-info-row">
+            <span class="status-label">수집된 뉴스</span>
+            <span class="status-value">${data.articles_collected}건</span>
+        </div>
+        <div class="status-info-row">
+            <span class="status-label">상태</span>
+            <span class="status-value">${data.status === 'success' ? '성공' : data.status}</span>
+        </div>
+    `;
+}
+
+// 이메일 상태 업데이트
+function updateEmailStatus(data) {
+    const badge = document.getElementById('email-status-badge');
+    const content = document.getElementById('email-status-content');
+    
+    if (data.status === 'success') {
+        badge.className = 'status-indicator status-connected';
+        badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> 정상';
+    } else if (data.status === 'never_sent') {
+        badge.className = 'status-indicator status-disconnected';
+        badge.innerHTML = '<i class="bi bi-dash-circle-fill"></i> 미발송';
+    } else {
+        badge.className = 'status-indicator status-disconnected';
+        badge.innerHTML = '<i class="bi bi-x-circle-fill"></i> 오류';
+    }
+    
+    content.innerHTML = `
+        <div class="status-info-row">
+            <span class="status-label">마지막 발송</span>
+            <span class="status-value">${data.last_sent ? new Date(data.last_sent).toLocaleString('ko-KR') : '없음'}</span>
+        </div>
+        <div class="status-info-row">
+            <span class="status-label">발송 대기 사용자</span>
+            <span class="status-value">${data.pending_count}명</span>
+        </div>
+        <div class="status-info-row">
+            <span class="status-label">상태</span>
+            <span class="status-value">${data.status === 'success' ? '성공' : data.status}</span>
+        </div>
+    `;
+}
+
+// 스케줄러 상태 업데이트
+function updateSchedulerStatus(data) {
+    const badge = document.getElementById('scheduler-status-badge');
+    const content = document.getElementById('scheduler-status-content');
+    
+    if (data.status === 'running') {
+        badge.className = 'status-indicator status-running';
+        badge.innerHTML = '<i class="bi bi-play-circle-fill"></i> 실행 중';
+    } else {
+        badge.className = 'status-indicator status-disconnected';
+        badge.innerHTML = '<i class="bi bi-pause-circle-fill"></i> 정지됨';
+    }
+    
+    let jobsHtml = '';
+    if (data.jobs && data.jobs.length > 0) {
+        jobsHtml = data.jobs.map(job => `
+            <div class="status-info-row">
+                <span class="status-label">${job.name || job.id}</span>
+                <span class="status-value">${job.next_run ? new Date(job.next_run).toLocaleString('ko-KR') : '예정 없음'}</span>
+            </div>
+        `).join('');
+    } else {
+        jobsHtml = '<div class="text-center py-3 text-muted">등록된 작업이 없습니다</div>';
+    }
+    
+    content.innerHTML = `
+        <div class="status-info-row">
+            <span class="status-label">상태</span>
+            <span class="status-value">${data.status === 'running' ? '실행 중' : data.status}</span>
+        </div>
+        <div class="status-info-row">
+            <span class="status-label">등록된 작업</span>
+            <span class="status-value">${data.jobs ? data.jobs.length : 0}개</span>
+        </div>
+        <div class="mt-3">
+            <h6 class="text-muted mb-2">작업 목록</h6>
+            ${jobsHtml}
+        </div>
+    `;
+}
+</script>
+{% endblock %}

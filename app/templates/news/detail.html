@@ -47,12 +47,18 @@
                     
                     <p class="text-muted">
                         <i class="bi bi-calendar"></i> 
-                        {{ news.published_at.strftime('%Y-%m-%d %H:%M') if news.published_at else 'N/A' }}
+                        {{ news.published_date if news.published_date else 'N/A' }}
                     </p>
                     
-                    <a href="{{ news.url }}" target="_blank" class="btn btn-outline-primary mb-4">
-                        <i class="bi bi-box-arrow-up-right"></i> 원문 보기
-                    </a>
+                    <!-- 기사 원문 내용 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-newspaper"></i> 기사 원문</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text" style="white-space: pre-line;">{{ news.content or '기사 내용이 없습니다.' }}</p>
+                        </div>
+                    </div>
                     
                     <!-- 요약 탭 -->
                     <ul class="nav nav-tabs" id="summaryTabs" role="tablist">
@@ -75,9 +81,9 @@
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="zh-tab" data-bs-toggle="tab" 
-                                    data-bs-target="#zh" type="button" role="tab">
-                                中文
+                            <button class="nav-link" id="es-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#es" type="button" role="tab">
+                                Español
                             </button>
                         </li>
                     </ul>
@@ -116,12 +122,12 @@
                             </div>
                         </div>
                         
-                        <div class="tab-pane fade" id="zh" role="tabpanel">
+                        <div class="tab-pane fade" id="es" role="tabpanel">
                             <div class="card">
                                 <div class="card-body">
-                                    <h5 class="card-title">中文摘要</h5>
+                                    <h5 class="card-title">Resumen en Español</h5>
                                     <p class="card-text">
-                                        {{ news.summary_zh or '没有摘要。' }}
+                                        {{ news.summary_es or 'No hay resumen disponible.' }}
                                     </p>
                                 </div>
                             </div>

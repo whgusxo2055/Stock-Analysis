@@ -1,8 +1,9 @@
 # Software Requirements Specification (SRS)
 ## 미국 주식 분석 웹서비스
 
-**문서 버전**: 1.0  
-**작성일**: 2025년 11월 20일  
+**문서 버전**: 1.1  
+**작성일**: 2025년 11월 27일  
+**최초 작성일**: 2025년 11월 20일  
 **프로젝트명**: Stock Analysis Service
 
 ---
@@ -210,26 +211,39 @@ Please provide the response in JSON format:
 - **FR-026**: 인덱스 구조:
 ```json
 {
-  "news_id": "unique_id",
+  "news_id": "550e8400-e29b-41d4-a716-446655440000",
   "ticker_symbol": "TSLA",
   "company_name": "Tesla Inc.",
   "title": "원본 제목",
-  "content": "원본 내용",
-  "url": "뉴스 URL",
+  "content": "원본 내용 (기사 전문)",
+  "source_url": "https://www.investing.com/news/stock-market-news/...",
+  "source_name": "Investing.com",
   "published_date": "2025-11-20T10:30:00Z",
   "crawled_date": "2025-11-20T12:00:00Z",
+  "analyzed_date": "2025-11-20T12:01:00Z",
   "summary": {
-    "ko": "한국어 요약",
-    "en": "English summary",
-    "es": "Resumen en español",
-    "ja": "日本語の要約"
+    "ko": "한국어 요약 (GPT-4 생성)",
+    "en": "English summary (GPT-4 generated)",
+    "es": "Resumen en español (GPT-4 generado)",
+    "ja": "日本語の要約 (GPT-4生成)"
   },
   "sentiment": {
-    "classification": "Positive",
+    "classification": "positive",
     "score": 7
+  },
+  "metadata": {
+    "word_count": 450,
+    "language": "en",
+    "gpt_model": "gpt-4"
   }
 }
 ```
+- **FR-026-1**: 필드 규칙:
+  - `news_id`: UUID v4 형식 필수
+  - `source_url`: 실제 접근 가능한 기사 URL (크롤링 시 추출)
+  - `source_name`: 뉴스 출처명 (예: Investing.com, Reuters)
+  - `sentiment.classification`: lowercase 저장 (positive/neutral/negative)
+  - 날짜 필드: ISO 8601 형식 필수
 
 #### 3.5.3 데이터 보관 정책
 - **FR-027**: ElasticSearch 데이터는 2년간 보관한다.
@@ -500,32 +514,98 @@ CREATE TABLE crawl_logs (
   },
   "mappings": {
     "properties": {
-      "news_id": { "type": "keyword" },
-      "ticker_symbol": { "type": "keyword" },
-      "company_name": { "type": "text" },
-      "title": { "type": "text", "analyzer": "standard" },
-      "content": { "type": "text", "analyzer": "standard" },
-      "url": { "type": "keyword" },
-      "published_date": { "type": "date" },
-      "crawled_date": { "type": "date" },
+      "news_id": { 
+        "type": "keyword",
+        "description": "UUID v4 형식의 고유 식별자"
+      },
+      "ticker_symbol": { 
+        "type": "keyword",
+        "description": "종목 티커 심볼 (예: AAPL, MSFT)"
+      },
+      "company_name": { 
+        "type": "text",
+        "description": "회사명"
+      },
+      "title": { 
+        "type": "text", 
+        "analyzer": "standard",
+        "description": "뉴스 기사 제목 (원문)"
+      },
+      "content": { 
+        "type": "text", 
+        "analyzer": "standard",
+        "description": "뉴스 기사 본문 (원문)"
+      },
+      "source_url": { 
+        "type": "keyword",
+        "description": "원본 기사 URL (실제 접근 가능한 URL)"
+      },
+      "source_name": {
+        "type": "keyword",
+        "description": "뉴스 출처명 (예: Investing.com, Reuters)"
+      },
+      "published_date": { 
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis",
+        "description": "기사 발행일 (ISO 8601 형식)"
+      },
+      "crawled_date": { 
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis",
+        "description": "크롤링 시점 (ISO 8601 형식)"
+      },
+      "analyzed_date": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis",
+        "description": "GPT 분석 완료 시점 (ISO 8601 형식)"
+      },
       "summary": {
         "properties": {
           "ko": { "type": "text", "analyzer": "korean" },
           "en": { "type": "text", "analyzer": "english" },
           "es": { "type": "text", "analyzer": "spanish" },
           "ja": { "type": "text", "analyzer": "cjk" }
-        }
+        },
+        "description": "다국어 요약 (GPT-4 생성)"
       },
       "sentiment": {
         "properties": {
-          "classification": { "type": "keyword" },
-          "score": { "type": "integer" }
-        }
+          "classification": { 
+            "type": "keyword",
+            "description": "감성 분류 (positive, neutral, negative)"
+          },
+          "score": { 
+            "type": "integer",
+            "description": "감성 점수 (-10 ~ +10)"
+          }
+        },
+        "description": "GPT-4 감성 분석 결과"
+      },
+      "metadata": {
+        "properties": {
+          "word_count": { "type": "integer" },
+          "language": { "type": "keyword" },
+          "gpt_model": { "type": "keyword" }
+        },
+        "description": "기사 메타데이터"
       }
     }
   }
 }
 ```
+
+##### 7.2.1.1 필드 저장 규칙
+| 필드 | 필수 | 규칙 |
+|------|------|------|
+| `news_id` | ✅ | UUID v4 형식 사용 |
+| `ticker_symbol` | ✅ | stock_master 테이블의 유효한 티커만 허용 |
+| `source_url` | ✅ | 실제 접근 가능한 기사 URL (크롤링 시 추출) |
+| `source_name` | ✅ | 뉴스 출처명 저장 |
+| `published_date` | ✅ | ISO 8601 형식 (예: 2024-01-15T09:30:00Z) |
+| `crawled_date` | ✅ | 크롤링 완료 시점 기록 |
+| `analyzed_date` | ⭕ | GPT 분석 완료 시 기록 |
+| `summary` | ⭕ | GPT 분석 후 4개 언어 요약 저장 |
+| `sentiment` | ⭕ | GPT 분석 후 감성 분류 및 점수 저장 |
 
 #### 7.2.2 Index Lifecycle Policy (2년 보관)
 ```json
@@ -953,6 +1033,7 @@ scockAnalysis/
 | 버전 | 날짜 | 작성자 | 변경 내용 |
 |------|------|--------|-----------|
 | 1.0 | 2025-11-20 | GitHub Copilot | 초안 작성 |
+| 1.1 | 2025-11-27 | GitHub Copilot | FR-026, 7.2.1 ElasticSearch 인덱스 구조 개정 (source_url, source_name, analyzed_date, metadata 필드 추가, 필드 저장 규칙 명시) |
 
 ---
 

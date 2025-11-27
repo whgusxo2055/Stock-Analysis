@@ -254,9 +254,600 @@
 - 다중 뉴스 소스 / Redis 캐시 / JWT / HTTPS / 실시간 알림 / 추천 기능 / 분석 고도화
 
 ---
-## 19. 문서 개정 이력
+## 19. SRS 개정에 따른 추가 개발 계획 (Phase 8)
+
+### 19.1 개정 배경
+SRS v1.1 개정으로 ElasticSearch 인덱스 구조가 변경됨. 기존 `url` 필드가 임의 생성된 URL을 저장하는 문제를 해결하고, 데이터 추적성 및 분석 품질 향상을 위한 필드가 추가됨.
+
+### 19.2 주요 변경 사항 (FR-026, 7.2.1 개정)
+
+| 구분 | 기존 | 변경 | 변경 사유 |
+|------|------|------|-----------|
+| 필드명 | `url` | `source_url` | 명확한 의미 전달, 실제 기사 URL 저장 |
+| 신규 필드 | - | `source_name` | 뉴스 출처 추적 (예: Investing.com) |
+| 신규 필드 | - | `analyzed_date` | GPT 분석 완료 시점 기록 |
+| 신규 필드 | - | `metadata` | word_count, language, gpt_model 메타정보 |
+| 값 규칙 | `"Positive"` | `"positive"` | sentiment.classification lowercase 통일 |
+| 형식 | - | UUID v4 | news_id 형식 명시 |
+
+### 19.3 영향 분석
+
+#### 19.3.1 코드 영향 범위
+| 파일/모듈 | 영향도 | 수정 내용 |
+|-----------|--------|-----------|
+| `app/utils/elasticsearch_client.py` | 높음 | 인덱스 매핑 변경, 필드명 수정 |
+| `app/services/crawler.py` | 높음 | 실제 기사 URL 추출 로직 개선 |
+| `app/services/analyzer.py` | 중간 | metadata 필드 추가, analyzed_date 기록 |
+| `app/routes/news.py` | 중간 | source_url 필드 참조 변경 |
+| `app/templates/news/detail.html` | 낮음 | 원문 링크 필드명 변경 (이미 content로 대체됨) |
+| `scripts/fix_news_data.py` | 낮음 | 마이그레이션 스크립트 갱신 |
+
+#### 19.3.2 데이터 영향 범위
+| 대상 | 영향 | 대응 방안 |
+|------|------|-----------|
+| 기존 ES 데이터 (13건) | 필드명 불일치 | 마이그레이션 스크립트로 갱신 |
+| 신규 저장 데이터 | 필드 누락 없이 저장 필요 | 코드 수정 후 테스트 |
+
+### 19.4 개발 작업 분해 (WBS)
+
+#### Phase 8: SRS 개정 반영 (예상 2일)
+
+| 작업 ID | 작업명 | 설명 | 선행 작업 | 예상 시간 |
+|---------|--------|------|-----------|-----------|
+| P8.T1 | ES 인덱스 매핑 수정 | `elasticsearch_client.py`의 `create_index()` 매핑 갱신 | - | 1시간 |
+| P8.T2 | 크롤러 URL 추출 개선 | `source_url`에 실제 기사 URL 저장, `source_name` 추가 | - | 2시간 |
+| P8.T3 | 분석기 metadata 추가 | `analyzed_date`, `metadata` 필드 생성 로직 | P8.T1 | 1시간 |
+| P8.T4 | 라우트/템플릿 필드 수정 | `url` → `source_url` 참조 변경 | P8.T1 | 30분 |
+| P8.T5 | 기존 데이터 마이그레이션 | 13건 데이터 필드 업데이트 스크립트 | P8.T1~T3 | 1시간 |
+| P8.T6 | 단위/통합 테스트 | 변경 사항 검증 | P8.T1~T5 | 2시간 |
+| P8.T7 | 문서 갱신 | README, 운영 핸드북 갱신 | P8.T6 | 30분 |
+
+### 19.5 상세 구현 계획
+
+#### P8.T1: ES 인덱스 매핑 수정
+**파일**: `app/utils/elasticsearch_client.py`
+
+```python
+# 변경 전
+"url": {"type": "keyword"},
+
+# 변경 후
+"source_url": {"type": "keyword"},
+"source_name": {"type": "keyword"},
+"analyzed_date": {"type": "date"},
+"metadata": {
+    "properties": {
+        "word_count": {"type": "integer"},
+        "language": {"type": "keyword"},
+        "gpt_model": {"type": "keyword"}
+    }
+}
+```
+
+**주의사항**: 기존 인덱스가 존재하므로 인덱스 재생성 또는 매핑 업데이트 필요
+
+#### P8.T2: 크롤러 URL 추출 개선
+**파일**: `app/services/crawler.py`
+
+**현재 문제**: `_extract_article_data()`에서 `url` 변수에 실제 기사 URL을 저장하나, 저장 시 다른 경로에서 덮어쓰기 가능
+
+**수정 내용**:
+1. 반환 딕셔너리 키를 `source_url`로 변경
+2. `source_name` 필드 추가 (기본값: "Investing.com")
+3. URL 추출 로직 검증 및 강화
+
+```python
+# 변경 전
+return {
+    'title': title,
+    'content': content,
+    'url': url,
+    'source': 'investing.com',
+    ...
+}
+
+# 변경 후
+return {
+    'title': title,
+    'content': content,
+    'source_url': url,  # 실제 기사 URL
+    'source_name': 'Investing.com',
+    ...
+}
+```
+
+#### P8.T3: 분석기 metadata 추가
+**파일**: `app/services/analyzer.py`
+
+**수정 내용**:
+1. `analyzed_date` 필드에 분석 완료 시점 기록
+2. `metadata` 객체 생성:
+   - `word_count`: 기사 본문 단어 수
+   - `language`: 원문 언어 (영어 기본)
+   - `gpt_model`: 사용된 GPT 모델명
+
+```python
+# 추가할 필드
+"analyzed_date": datetime.now(timezone.utc).isoformat(),
+"metadata": {
+    "word_count": len(content.split()),
+    "language": "en",
+    "gpt_model": "gpt-4"
+}
+```
+
+#### P8.T4: 라우트/템플릿 필드 수정
+**파일**: `app/routes/news.py`
+
+**수정 내용**: 기존 `url` 필드 참조를 `source_url`로 변경
+
+```python
+# 변경 전
+'url': news.get('url', ''),
+
+# 변경 후
+'source_url': news.get('source_url', ''),
+'source_name': news.get('source_name', 'Unknown'),
+```
+
+#### P8.T5: 기존 데이터 마이그레이션
+**파일**: `scripts/migrate_es_schema_v1_1.py` (신규 생성)
+
+**작업 내용**:
+1. 기존 13개 문서 조회
+2. 필드명 변경 (`url` → `source_url`, `source` → `source_name`)
+3. 누락 필드 추가 (`analyzed_date`, `metadata`)
+4. sentiment.classification lowercase 변환
+5. 업데이트된 문서 재색인
+
+### 19.6 테스트 계획
+
+| 테스트 유형 | 테스트 항목 | 검증 기준 |
+|-------------|-------------|-----------|
+| 단위 테스트 | ES 인덱스 매핑 | 새 필드 포함 확인 |
+| 단위 테스트 | 크롤러 URL 추출 | source_url에 유효한 URL 저장 |
+| 단위 테스트 | 분석기 metadata | 필드 값 정상 생성 |
+| 통합 테스트 | 크롤링→분석→저장 | 모든 필드 정상 저장 |
+| 통합 테스트 | 뉴스 상세 페이지 | source_url 정상 표시 |
+| 회귀 테스트 | 기존 기능 | 뉴스 조회, 필터링 정상 동작 |
+
+### 19.7 롤백 계획
+
+| 단계 | 롤백 조치 |
+|------|-----------|
+| ES 인덱스 | 기존 매핑 백업 후 수정, 문제 시 백업에서 복원 |
+| 코드 변경 | Git 브랜치 분리 (feature/srs-v1.1), 문제 시 main 롤백 |
+| 데이터 마이그레이션 | 마이그레이션 전 ES 스냅샷 생성 |
+
+### 19.8 완료 기준
+
+- [ ] ES 인덱스에 `source_url`, `source_name`, `analyzed_date`, `metadata` 필드 포함
+- [ ] 신규 크롤링 시 `source_url`에 실제 기사 URL 저장
+- [ ] `sentiment.classification`이 lowercase로 저장
+- [ ] 기존 13건 데이터 마이그레이션 완료
+- [ ] 뉴스 상세 페이지에서 출처 정보 정상 표시
+- [ ] 단위/통합 테스트 통과율 ≥ 90%
+
+---
+## 20. 현재 구현 상태 분석 (2025-11-27 기준)
+
+### 20.1 전체 진행률
+- **전체 FR 구현률**: 약 85% (51/60)
+- **핵심 기능**: 완료 (크롤링, 분석, 저장, 메일, 기본 UI)
+- **미구현 핵심**: 관리자 페이지, 통계 페이지, 사용자 프로필 수정
+
+### 20.2 구현 완료 항목
+
+#### ✅ 사용자 관리 (FR-001~005)
+| FR | 항목 | 상태 | 구현 파일 |
+|-----|------|------|-----------|
+| FR-002 | 로그인 | ✅ 완료 | `routes/auth.py` |
+| FR-003 | 세션 관리 | ✅ 완료 | Flask Session |
+| FR-004 | 로그아웃 | ✅ 완료 | `routes/auth.py` |
+
+#### ✅ 종목 관리 (FR-006~010)
+| FR | 항목 | 상태 | 구현 파일 |
+|-----|------|------|-----------|
+| FR-006 | 티커-회사명 매핑 | ✅ 완료 | `models/stock.py` |
+| FR-007 | 관심 종목 추가 | ✅ 완료 | `routes/stocks.py` |
+| FR-008 | 관심 종목 삭제 | ✅ 완료 | `routes/stocks.py` |
+| FR-009 | 관심 종목 조회 | ✅ 완료 | `routes/stocks.py` |
+| FR-010 | stock_master 유지 | ✅ 완료 | `models/stock.py` |
+
+#### ✅ 뉴스 수집 (FR-011~017)
+| FR | 항목 | 상태 | 구현 파일 |
+|-----|------|------|-----------|
+| FR-011 | investing.com 소스 | ✅ 완료 | `services/crawler.py` |
+| FR-012 | Selenium 크롤링 | ✅ 완료 | `services/crawler.py` |
+| FR-013 | 3시간 자동 크롤링 | ✅ 완료 | `services/scheduler.py` |
+| FR-014 | 최근 뉴스 수집 | ✅ 완료 | `services/crawler.py` |
+| FR-015 | 종목별 뉴스 수집 | ✅ 완료 | `services/crawler.py` |
+| FR-016 | 뉴스 데이터 수집 | ✅ 완료 | `services/crawler.py` |
+| FR-017 | 중복 방지 | ✅ 완료 | `services/news_storage.py` |
+
+#### ✅ 뉴스 분석 (FR-018~020)
+| FR | 항목 | 상태 | 구현 파일 |
+|-----|------|------|-----------|
+| FR-018 | ChatGPT API 연동 | ✅ 완료 | `services/news_analyzer.py` |
+| FR-019 | 다국어 요약 + 감성분석 | ✅ 완료 | `services/news_analyzer.py` |
+| FR-020 | 프롬프트 설계 | ✅ 완료 | `services/news_analyzer.py` |
+
+#### ✅ 데이터 저장 (FR-021~028)
+| FR | 항목 | 상태 | 구현 파일 |
+|-----|------|------|-----------|
+| FR-021 | users 테이블 | ✅ 완료 | `models/user.py` |
+| FR-022 | user_settings 테이블 | ✅ 완료 | `models/user.py` |
+| FR-023 | user_stocks 테이블 | ✅ 완료 | `models/stock.py` |
+| FR-024 | stock_master 테이블 | ✅ 완료 | `models/stock.py` |
+| FR-025 | ES 뉴스 저장 | ✅ 완료 | `services/news_storage.py` |
+| FR-026 | ES 인덱스 구조 | ✅ 완료 | `utils/elasticsearch_client.py` |
+| FR-027 | 2년 보관 정책 | ✅ 완료 | `services/scheduler.py` |
+| FR-028 | 오래된 데이터 삭제 | ✅ 완료 | `services/scheduler.py` |
+
+#### ✅ 메일 발송 (FR-029~038)
+| FR | 항목 | 상태 | 구현 파일 |
+|-----|------|------|-----------|
+| FR-029 | 메일 수신 시각 설정 | ✅ 완료 | `routes/settings.py` |
+| FR-030 | 수신 언어 선택 | ✅ 완료 | `routes/settings.py` |
+| FR-031 | Gmail SMTP 발송 | ✅ 완료 | `services/email_sender.py` |
+| FR-032 | HTML 보고서 | ✅ 완료 | `templates/email/` |
+| FR-033 | 메일 내용 구성 | ✅ 완료 | `services/email_sender.py` |
+| FR-034 | 디자인 요구사항 | ✅ 완료 | `templates/email/` |
+| FR-035 | 스케줄 메일 발송 | ✅ 완료 | `services/scheduler.py` |
+| FR-036 | 새 뉴스 없음 알림 | ✅ 완료 | `services/email_sender.py` |
+| FR-037 | 재시도 로직 | ✅ 완료 | `services/email_sender.py` |
+| FR-038 | 발송 이력 로그 | ✅ 완료 | `services/email_sender.py` |
+
+#### ✅ 웹 UI (FR-039~056) - 부분 완료
+| FR | 항목 | 상태 | 구현 파일 |
+|-----|------|------|-----------|
+| FR-039 | 대시보드 메인 | ✅ 완료 | `templates/dashboard.html` |
+| FR-040 | 오늘의 뉴스/통계 | ✅ 완료 | `routes/main.py` |
+| FR-041 | 관심 종목 목록 | ✅ 완료 | `templates/stocks/` |
+| FR-042 | 종목 추가 폼 | ✅ 완료 | `templates/stocks/` |
+| FR-043 | 종목 삭제 버튼 | ✅ 완료 | `templates/stocks/` |
+| FR-044 | 뉴스 히스토리 | ✅ 완료 | `templates/news/` |
+| FR-045 | 날짜 필터 | ✅ 완료 | `routes/news.py` |
+| FR-046 | 호재/악재 필터 | ✅ 완료 | `routes/news.py` |
+| FR-047 | 페이지네이션 | ✅ 완료 | `routes/news.py` |
+| FR-048 | 뉴스 상세 보기 | ✅ 완료 | `templates/news/detail.html` |
+| FR-051 | 메일 시각 설정 | ✅ 완료 | `templates/settings.html` |
+| FR-052 | 언어 선택 | ✅ 완료 | `templates/settings.html` |
+| FR-053 | 알림 ON/OFF | ✅ 완료 | `routes/settings.py` |
+| FR-054 | 테스트 메일 발송 | ✅ 완료 | `routes/settings.py` |
+
+### 20.3 미구현 항목
+
+#### ❌ 필수 구현 (핵심 기능 누락)
+| FR | 항목 | 우선순위 | 예상 시간 |
+|-----|------|----------|-----------|
+| FR-001 | 관리자 사용자 등록 UI | 🔴 높음 | 2시간 |
+| FR-005 | 비밀번호/이메일 변경 | 🔴 높음 | 2시간 |
+| FR-049 | 종목별 호재/악재 통계 차트 | 🔴 높음 | 4시간 |
+| FR-050 | 종목별 뉴스 수 통계 | 🔴 높음 | 2시간 |
+| FR-055 | 비밀번호 변경 UI | 🟡 중간 | 1시간 |
+| FR-056 | 이메일 변경 UI | 🟡 중간 | 1시간 |
+| FR-057 | 사용자 목록 조회 | 🔴 높음 | 2시간 |
+| FR-058 | 새 사용자 등록 | 🔴 높음 | 2시간 |
+| FR-059 | 사용자 활성화/비활성화 | 🔴 높음 | 1시간 |
+| FR-060 | 시스템 상태 모니터링 | 🔴 높음 | 3시간 |
+
+#### ❌ 미구현 API (SRS 8장 기준)
+| Method | Endpoint | 설명 | 우선순위 |
+|--------|----------|------|----------|
+| GET | `/api/user/profile` | 내 정보 조회 | 🟡 중간 |
+| PUT | `/api/user/profile` | 내 정보 수정 | 🔴 높음 |
+| GET | `/api/news/statistics` | 통계 조회 | 🔴 높음 |
+| POST | `/api/admin/users` | 사용자 생성 | 🔴 높음 |
+| GET | `/api/admin/users` | 사용자 목록 | 🔴 높음 |
+| PUT | `/api/admin/users/{id}` | 사용자 활성화 | 🔴 높음 |
+| GET | `/api/admin/system-status` | 시스템 상태 | 🔴 높음 |
+
+#### ❌ 미구현 페이지
+| 페이지 | 설명 | 관련 FR |
+|--------|------|---------|
+| 통계 페이지 | Chart.js 차트 시각화 | FR-049, FR-050 |
+| 관리자 - 사용자 목록 | 사용자 관리 테이블 | FR-057 |
+| 관리자 - 사용자 등록 | 등록 폼 | FR-058 |
+| 관리자 - 시스템 상태 | 크롤링/ES/메일 상태 | FR-060 |
+
+---
+## 21. Phase 9: 미구현 기능 개발 계획 (총 3 스프린트)
+
+### 21.1 스프린트 개요
+
+| 스프린트 | 기간 | 목표 | 스토리 포인트 |
+|----------|------|------|---------------|
+| Sprint 9.1 | 1일 | 관리자 페이지 - API 및 기본 UI | 13 SP |
+| Sprint 9.2 | 1일 | 통계 페이지 - ES 집계 및 차트 | 10 SP |
+| Sprint 9.3 | 0.5일 | 사용자 프로필 수정 및 통합 테스트 | 8 SP |
+
+**총 예상 기간**: 2.5일 (20시간)  
+**총 스토리 포인트**: 31 SP
+
+---
+
+### 21.2 Sprint 9.1: 관리자 페이지 (1일)
+
+#### 📋 스프린트 목표
+관리자가 사용자를 관리하고 시스템 상태를 모니터링할 수 있는 페이지 구현
+
+#### 🎯 스프린트 백로그
+
+| 태스크 ID | 태스크명 | 설명 | SP | 담당 | 상태 |
+|-----------|----------|------|-----|------|------|
+| S9.1-001 | 관리자 Blueprint 생성 | `routes/admin.py` 신규 생성, Blueprint 등록 | 1 | - | ⬜ TODO |
+| S9.1-002 | @admin_required 검증 | 기존 데코레이터 동작 확인 및 테스트 | 1 | - | ⬜ TODO |
+| S9.1-003 | 사용자 목록 API | `GET /api/admin/users` - 전체 사용자 조회 | 2 | - | ⬜ TODO |
+| S9.1-004 | 사용자 등록 API | `POST /api/admin/users` - 신규 사용자 생성 | 2 | - | ⬜ TODO |
+| S9.1-005 | 사용자 활성화 API | `PUT /api/admin/users/{id}` - 활성/비활성 토글 | 1 | - | ⬜ TODO |
+| S9.1-006 | 시스템 상태 API | `GET /api/admin/system-status` - ES/크롤러/메일 상태 | 3 | - | ⬜ TODO |
+| S9.1-007 | 관리자 사용자 목록 UI | `templates/admin/users.html` - 테이블 + 액션 버튼 | 2 | - | ⬜ TODO |
+| S9.1-008 | 관리자 시스템 상태 UI | `templates/admin/system_status.html` - 상태 카드 | 1 | - | ⬜ TODO |
+
+#### 📁 산출물
+```
+app/
+├── routes/
+│   └── admin.py (신규)
+├── templates/
+│   └── admin/
+│       ├── users.html
+│       └── system_status.html
+```
+
+#### ✅ 완료 조건 (DoD)
+- [ ] 관리자 로그인 후 `/admin/users` 접근 가능
+- [ ] 비관리자 접근 시 403 또는 리다이렉트 처리
+- [ ] 사용자 목록 테이블 정상 렌더링
+- [ ] 사용자 등록 폼 → DB 저장 완료
+- [ ] 사용자 활성/비활성 토글 동작
+- [ ] 시스템 상태 (ES 연결, 문서 수, 마지막 크롤링) 표시
+
+#### 🔧 기술 상세
+
+**S9.1-006: 시스템 상태 API 응답 형식**
+```python
+{
+    "elasticsearch": {
+        "status": "connected" | "disconnected",
+        "documents": 57,
+        "index": "news_analysis"
+    },
+    "crawler": {
+        "last_run": "2025-11-27T17:06:00Z",
+        "status": "success" | "failed",
+        "articles_collected": 57
+    },
+    "email": {
+        "last_sent": "2025-11-27T09:00:00Z",
+        "status": "success" | "failed",
+        "pending_count": 0
+    },
+    "scheduler": {
+        "jobs": ["crawl_job", "email_job", "cleanup_job"],
+        "status": "running" | "stopped"
+    }
+}
+```
+
+---
+
+### 21.3 Sprint 9.2: 통계 페이지 (1일)
+
+#### 📋 스프린트 목표
+종목별 호재/악재 통계를 차트로 시각화하는 통계 페이지 구현
+
+#### 🎯 스프린트 백로그
+
+| 태스크 ID | 태스크명 | 설명 | SP | 담당 | 상태 |
+|-----------|----------|------|-----|------|------|
+| S9.2-001 | 통계 API 엔드포인트 | `GET /api/news/statistics` - 기본 구조 | 1 | - | ⬜ TODO |
+| S9.2-002 | ES 종목별 집계 쿼리 | ticker별 positive/negative/neutral 카운트 | 3 | - | ⬜ TODO |
+| S9.2-003 | ES 기간별 집계 쿼리 | 7일/30일 기간 필터 + date_histogram | 2 | - | ⬜ TODO |
+| S9.2-004 | 통계 라우트 생성 | `routes/news.py`에 통계 페이지 라우트 추가 | 1 | - | ⬜ TODO |
+| S9.2-005 | 통계 페이지 템플릿 | `templates/statistics.html` - 레이아웃 | 1 | - | ⬜ TODO |
+| S9.2-006 | Chart.js 통합 | CDN 추가, 기본 설정 | 1 | - | ⬜ TODO |
+| S9.2-007 | 호재/악재 Doughnut 차트 | 종목별 감성 비율 시각화 | 1 | - | ⬜ TODO |
+
+#### 📁 산출물
+```
+app/
+├── routes/
+│   └── news.py (수정 - 통계 라우트 추가)
+├── templates/
+│   └── statistics.html (신규)
+```
+
+#### ✅ 완료 조건 (DoD)
+- [ ] `/statistics` 페이지 정상 렌더링
+- [ ] 기간 선택 (7일/30일) 드롭다운 동작
+- [ ] 종목별 호재/악재/중립 비율 Doughnut 차트 표시
+- [ ] 뉴스 없을 때 "데이터 없음" 메시지 표시
+- [ ] API 응답 시간 < 2초
+
+#### 🔧 기술 상세
+
+**S9.2-002: ES 집계 쿼리**
+```python
+{
+    "size": 0,
+    "query": {
+        "bool": {
+            "filter": [
+                {"range": {"crawled_date": {"gte": "now-7d"}}}
+            ]
+        }
+    },
+    "aggs": {
+        "by_ticker": {
+            "terms": {"field": "ticker_symbol", "size": 20},
+            "aggs": {
+                "sentiment_avg": {"avg": {"field": "sentiment.score"}},
+                "positive": {"filter": {"term": {"sentiment.classification": "positive"}}},
+                "negative": {"filter": {"term": {"sentiment.classification": "negative"}}},
+                "neutral": {"filter": {"term": {"sentiment.classification": "neutral"}}}
+            }
+        },
+        "total_count": {"value_count": {"field": "news_id"}}
+    }
+}
+```
+
+**Chart.js 차트 유형**:
+| 차트 | 용도 | 데이터 |
+|------|------|--------|
+| Doughnut | 종목별 감성 비율 | positive/negative/neutral % |
+| Bar | 종목별 뉴스 수 | ticker별 article count |
+| Line | 일별 뉴스 추이 | date_histogram (선택적) |
+
+---
+
+### 21.4 Sprint 9.3: 사용자 프로필 및 마무리 (0.5일)
+
+#### 📋 스프린트 목표
+사용자 프로필 수정 기능 및 전체 통합 테스트 완료
+
+#### 🎯 스프린트 백로그
+
+| 태스크 ID | 태스크명 | 설명 | SP | 담당 | 상태 |
+|-----------|----------|------|-----|------|------|
+| S9.3-001 | 프로필 조회 API | `GET /api/user/profile` - 현재 사용자 정보 | 1 | - | ⬜ TODO |
+| S9.3-002 | 프로필 수정 API | `PUT /api/user/profile` - 이메일/비밀번호 변경 | 2 | - | ⬜ TODO |
+| S9.3-003 | 비밀번호 변경 검증 | 현재 비밀번호 확인 로직 | 1 | - | ⬜ TODO |
+| S9.3-004 | 설정 페이지 프로필 섹션 | `settings.html` 확장 - 프로필 편집 폼 | 2 | - | ⬜ TODO |
+| S9.3-005 | 네비게이션 메뉴 업데이트 | 관리자 메뉴, 통계 링크 추가 | 1 | - | ⬜ TODO |
+| S9.3-006 | 통합 테스트 | 전체 기능 E2E 테스트 | 1 | - | ⬜ TODO |
+
+#### 📁 산출물
+```
+app/
+├── routes/
+│   └── settings.py (수정 - 프로필 API 추가)
+├── templates/
+│   ├── settings.html (수정 - 프로필 섹션)
+│   └── base.html (수정 - 네비게이션)
+```
+
+#### ✅ 완료 조건 (DoD)
+- [ ] 설정 페이지에서 비밀번호 변경 가능
+- [ ] 설정 페이지에서 이메일 변경 가능
+- [ ] 현재 비밀번호 틀리면 에러 메시지
+- [ ] 네비게이션에 "통계", "관리자" 메뉴 표시 (권한별)
+- [ ] 모든 신규 API 정상 동작
+
+#### 🔧 기술 상세
+
+**S9.3-002: 프로필 수정 API**
+```python
+@settings_bp.route('/api/user/profile', methods=['PUT'])
+@login_required
+def update_profile():
+    data = request.get_json()
+    current_user = get_current_user()
+    
+    # 비밀번호 변경
+    if 'new_password' in data and data['new_password']:
+        if not data.get('current_password'):
+            return jsonify({'error': '현재 비밀번호를 입력해주세요'}), 400
+        if not current_user.check_password(data['current_password']):
+            return jsonify({'error': '현재 비밀번호가 일치하지 않습니다'}), 400
+        current_user.set_password(data['new_password'])
+    
+    # 이메일 변경
+    if 'email' in data and data['email'] != current_user.email:
+        existing = User.query.filter_by(email=data['email']).first()
+        if existing:
+            return jsonify({'error': '이미 사용 중인 이메일입니다'}), 400
+        current_user.email = data['email']
+    
+    db.session.commit()
+    return jsonify({'success': True, 'message': '프로필이 수정되었습니다'})
+```
+
+---
+
+### 21.5 스프린트 일정표 (간트 차트)
+
+```
+Day 1 (8h)
+├─ Sprint 9.1: 관리자 페이지
+│  ├─ 09:00-09:30  S9.1-001, S9.1-002 (Blueprint, 데코레이터)
+│  ├─ 09:30-12:00  S9.1-003, S9.1-004, S9.1-005 (사용자 API)
+│  ├─ 13:00-15:00  S9.1-006 (시스템 상태 API)
+│  └─ 15:00-18:00  S9.1-007, S9.1-008 (관리자 UI)
+
+Day 2 (8h)
+├─ Sprint 9.2: 통계 페이지
+│  ├─ 09:00-12:00  S9.2-001, S9.2-002, S9.2-003 (통계 API + ES)
+│  ├─ 13:00-15:00  S9.2-004, S9.2-005 (라우트 + 템플릿)
+│  └─ 15:00-18:00  S9.2-006, S9.2-007 (Chart.js 차트)
+
+Day 3 (4h)
+├─ Sprint 9.3: 프로필 및 마무리
+│  ├─ 09:00-11:00  S9.3-001~S9.3-004 (프로필 수정)
+│  └─ 11:00-13:00  S9.3-005, S9.3-006 (네비게이션 + 테스트)
+```
+
+---
+
+### 21.6 리스크 및 대응
+
+| 리스크 | 영향 | 확률 | 대응 방안 |
+|--------|------|------|-----------|
+| ES 집계 쿼리 복잡도 | 통계 지연 | 중 | 캐싱 또는 쿼리 단순화 |
+| Chart.js 호환성 | 차트 미표시 | 저 | CDN fallback, 버전 고정 |
+| 프로필 수정 보안 | 비인가 접근 | 중 | 세션 검증 강화 |
+
+---
+
+### 21.7 전체 완료 기준 (Phase 9 DoD)
+
+#### 기능 완료
+- [ ] 관리자 페이지에서 사용자 목록 조회/등록/활성화 가능
+- [ ] 관리자 페이지에서 시스템 상태 (ES, 크롤러, 메일) 확인 가능
+- [ ] 통계 페이지에서 종목별 호재/악재 차트 표시
+- [ ] 통계 페이지에서 기간별 (7일/30일) 필터 동작
+- [ ] 설정 페이지에서 비밀번호 변경 가능
+- [ ] 설정 페이지에서 이메일 변경 가능
+- [ ] 네비게이션에 통계/관리자 메뉴 권한별 표시
+
+#### 품질 기준
+- [ ] 모든 API 엔드포인트 정상 응답 (200/201/4xx)
+- [ ] 비관리자 접근 시 403 또는 리다이렉트
+- [ ] 페이지 로딩 시간 < 3초
+- [ ] 콘솔 에러 없음
+
+#### 문서화
+- [ ] API 엔드포인트 README 업데이트
+- [ ] 관리자 가이드 작성 (선택적)
+
+---
+## 22. 크롤러 성능 개선 현황 (2025-11-27)
+
+### 22.1 멀티스레드 크롤링 도입
+- **구현 완료**: `batch_crawl_parallel()` 함수
+- **성능 향상**: 5개 워커 동시 실행
+- **성공률**: 60% (6/10 종목) → 기존 20% 대비 3배 향상
+
+### 22.2 봇 차단 우회 전략
+| 전략 | 상태 | 설명 |
+|------|------|------|
+| User-Agent 로테이션 | ✅ 구현 | 7개 UA 랜덤 선택 |
+| 프록시 인프라 | ✅ 준비 | `PROXY_LIST` + `get_next_proxy()` |
+| 랜덤 딜레이 | ✅ 구현 | 10-15초 랜덤 대기 |
+| 멀티스레드 | ✅ 구현 | ThreadPoolExecutor 5 workers |
+
+### 22.3 향후 개선 사항
+- 실제 프록시 서버 추가 시 성공률 추가 향상 예상
+- Playwright 전환 검토 (더 나은 안티봇 우회)
+
+---
+## 23. 문서 개정 이력
 | 버전 | 날짜 | 작성자 | 변경 내용 |
 |-------|------|--------|-----------|
 | 0.1 | 2025-11-20 | Copilot | 초안 작성 |
+| 0.2 | 2025-11-27 | Copilot | SRS v1.1 개정 반영 개발 계획 추가 (Phase 8) |
+| 0.3 | 2025-11-27 | Copilot | 현재 구현 상태 분석 및 Phase 9 미구현 기능 개발 계획 추가 |
 
 (끝)

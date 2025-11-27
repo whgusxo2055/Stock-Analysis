@@ -3,12 +3,13 @@
 - ChatGPT API를 통한 다국어 요약
 - 호재/악재 감성 분석
 - FR-018~020 구현
+- SRS v1.1: analyzed_date, metadata 필드 추가
 """
 
 import logging
 import json
 from typing import Dict, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 try:
     from openai import OpenAI
@@ -231,6 +232,9 @@ Please provide the response in JSON format:
                 logger.warning(f"Invalid classification: {classification}")
                 classification = 'Neutral'
             
+            # SRS v1.1: classification을 lowercase로 저장
+            classification = classification.lower()
+            
             # 점수 범위 검증 (-10 ~ +10)
             try:
                 score = int(score)
@@ -310,12 +314,12 @@ Please provide the response in JSON format:
                     'content': '...',
                     'ticker': 'TSLA',
                     'company_name': '...',
-                    'url': '...',
+                    'source_url': '...',
                     'date': '...'
                 }, ...]
         
         Returns:
-            분석 결과가 추가된 뉴스 리스트
+            분석 결과가 추가된 뉴스 리스트 (SRS v1.1 필드 포함)
         """
         if not news_items:
             return []
@@ -326,9 +330,11 @@ Please provide the response in JSON format:
         
         for item in news_items:
             try:
+                content = item.get('content', '')
+                
                 analysis = self.analyze_news(
                     title=item.get('title', ''),
-                    content=item.get('content', ''),
+                    content=content,
                     ticker=item.get('ticker', ''),
                     company_name=item.get('company_name')
                 )
@@ -337,6 +343,15 @@ Please provide the response in JSON format:
                     # 분석 결과 추가
                     item['summary'] = analysis['summary']
                     item['sentiment'] = analysis['sentiment']
+                    
+                    # SRS v1.1: analyzed_date, metadata 필드 추가
+                    item['analyzed_date'] = datetime.now(timezone.utc).isoformat()
+                    item['metadata'] = {
+                        'word_count': len(content.split()) if content else 0,
+                        'language': 'en',  # 원문 언어 (기본: 영어)
+                        'gpt_model': Config.OPENAI_MODEL
+                    }
+                    
                     analyzed.append(item)
                 else:
                     logger.warning(

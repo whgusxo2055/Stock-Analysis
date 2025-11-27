@@ -38,7 +38,7 @@ class ElasticsearchClient:
     
     def create_index(self) -> bool:
         """
-        뉴스 분석 인덱스 생성 (SRS 7.2.1)
+        뉴스 분석 인덱스 생성 (SRS 7.2.1 v1.1)
         
         Returns:
             bool: 인덱스 생성 성공 여부
@@ -47,7 +47,7 @@ class ElasticsearchClient:
             logger.info(f"Index '{self.index_name}' already exists.")
             return True
         
-        # 인덱스 매핑 정의
+        # 인덱스 매핑 정의 (SRS v1.1 반영)
         index_body = {
             "settings": {
                 "number_of_shards": 1,
@@ -63,9 +63,11 @@ class ElasticsearchClient:
                     "company_name": {"type": "text"},
                     "title": {"type": "text", "analyzer": "standard"},
                     "content": {"type": "text", "analyzer": "standard"},
-                    "url": {"type": "keyword"},
+                    "source_url": {"type": "keyword"},
+                    "source_name": {"type": "keyword"},
                     "published_date": {"type": "date"},
                     "crawled_date": {"type": "date"},
+                    "analyzed_date": {"type": "date"},
                     "summary": {
                         "properties": {
                             "ko": {"type": "text", "analyzer": "standard"},
@@ -78,6 +80,13 @@ class ElasticsearchClient:
                         "properties": {
                             "classification": {"type": "keyword"},
                             "score": {"type": "integer"}
+                        }
+                    },
+                    "metadata": {
+                        "properties": {
+                            "word_count": {"type": "integer"},
+                            "language": {"type": "keyword"},
+                            "gpt_model": {"type": "keyword"}
                         }
                     }
                 }
@@ -116,6 +125,25 @@ class ElasticsearchClient:
         except Exception as e:
             logger.error(f"Failed to index news: {e}")
             return False
+    
+    def get_document(self, doc_id: str) -> Optional[Dict]:
+        """
+        ID로 단일 문서 조회
+        
+        Args:
+            doc_id (str): 문서 ID
+        
+        Returns:
+            Optional[Dict]: 문서 데이터 또는 None
+        """
+        try:
+            response = self.client.get(index=self.index_name, id=doc_id)
+            if response and response.get('found'):
+                return response.get('_source')
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get document {doc_id}: {e}")
+            return None
     
     def bulk_index_news(self, news_list: List[Dict]) -> int:
         """

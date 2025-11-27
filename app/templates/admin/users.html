@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}사용자 관리 - Stock Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+    .admin-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    
+    .stat-card .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #667eea;
+    }
+    
+    .stat-card .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+    }
+    
+    .user-table {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .badge-active {
+        background: rgba(52, 168, 83, 0.1);
+        color: #34a853;
+    }
+    
+    .badge-inactive {
+        background: rgba(234, 67, 53, 0.1);
+        color: #ea4335;
+    }
+    
+    .badge-admin {
+        background: rgba(102, 126, 234, 0.1);
+        color: #667eea;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <div class="container">
+        <h2><i class="bi bi-people"></i> 사용자 관리</h2>
+        <p class="mb-0">시스템 사용자를 관리합니다</p>
+    </div>
+</div>
+
+<div class="container mb-5">
+    <!-- 통계 카드 -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-value">{{ total_users }}</div>
+                <div class="stat-label">전체 사용자</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-value">{{ active_users }}</div>
+                <div class="stat-label">활성 사용자</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-value">{{ admin_users }}</div>
+                <div class="stat-label">관리자</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 사용자 목록 -->
+    <div class="user-table">
+        <div class="p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-list-ul"></i> 사용자 목록</h5>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                    <i class="bi bi-plus-circle"></i> 신규 사용자 등록
+                </button>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>사용자명</th>
+                            <th>이메일</th>
+                            <th>권한</th>
+                            <th>상태</th>
+                            <th>가입일</th>
+                            <th>작업</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>
+                                <strong>{{ user.username }}</strong>
+                                {% if user.is_admin %}
+                                <span class="badge badge-admin ms-1">관리자</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                {% if user.is_admin %}
+                                <span class="text-primary"><i class="bi bi-shield-check"></i> 관리자</span>
+                                {% else %}
+                                <span class="text-muted"><i class="bi bi-person"></i> 일반</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.is_active %}
+                                <span class="badge badge-active">활성</span>
+                                {% else %}
+                                <span class="badge badge-inactive">비활성</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                {% if user.id != session.user_id %}
+                                {% if user.is_active %}
+                                <button class="btn btn-sm btn-outline-primary" 
+                                        data-user-id="{{ user.id }}" 
+                                        data-action="deactivate"
+                                        onclick="toggleUserStatus(this)">
+                                    <i class="bi bi-pause-circle"></i> 비활성화
+                                </button>
+                                {% else %}
+                                <button class="btn btn-sm btn-outline-primary" 
+                                        data-user-id="{{ user.id }}" 
+                                        data-action="activate"
+                                        onclick="toggleUserStatus(this)">
+                                    <i class="bi bi-play-circle"></i> 활성화
+                                </button>
+                                {% endif %}
+                                </button>
+                                {% else %}
+                                <span class="text-muted small">본인</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 사용자 등록 모달 -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus"></i> 신규 사용자 등록</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createUserForm">
+                    <div class="mb-3">
+                        <label class="form-label">사용자명 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="username" required 
+                               placeholder="영문, 숫자 조합 (5-20자)">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">이메일 <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" name="email" required
+                               placeholder="user@example.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">비밀번호 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="password" required
+                               placeholder="8자 이상">
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_admin" id="isAdmin">
+                            <label class="form-check-label" for="isAdmin">
+                                관리자 권한 부여
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_active" id="isActive" checked>
+                            <label class="form-check-label" for="isActive">
+                                활성 상태로 생성
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" onclick="createUser()">
+                    <i class="bi bi-check-circle"></i> 생성
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 사용자 생성
+function createUser() {
+    const form = document.getElementById('createUserForm');
+    const formData = new FormData(form);
+    
+    const data = {
+        username: formData.get('username'),
+        email: formData.get('email'),
+        password: formData.get('password'),
+        is_admin: formData.get('is_admin') ? true : false,
+        is_active: formData.get('is_active') ? true : false
+    };
+    
+    // 유효성 검증
+    if (!data.username || !data.email || !data.password) {
+        alert('모든 필수 항목을 입력해주세요.');
+        return;
+    }
+    
+    if (data.password.length < 8) {
+        alert('비밀번호는 8자 이상이어야 합니다.');
+        return;
+    }
+    
+    fetch('/admin/api/users', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('사용자가 생성되었습니다.');
+            location.reload();
+        } else {
+            alert('오류: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('사용자 생성 중 오류가 발생했습니다.');
+    });
+}
+
+// 사용자 활성화/비활성화 토글
+function toggleUserStatus(button) {
+    const userId = button.dataset.userId;
+    const action = button.dataset.action;
+    const activate = action === 'activate';
+    const actionText = activate ? '활성화' : '비활성화';
+    
+    if (!confirm(`이 사용자를 ${actionText}하시겠습니까?`)) {
+        return;
+    }
+    
+    fetch(`/admin/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            is_active: activate
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('오류: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('사용자 상태 변경 중 오류가 발생했습니다.');
+    });
+}
+</script>
+{% endblock %}
