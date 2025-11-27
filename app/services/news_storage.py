@@ -405,6 +405,133 @@ class NewsStorageAdapter:
             logger.error(f"Failed to get news by ID {news_id}: {e}")
             return None
     
+    def get_ticker_statistics(self, ticker: str, from_date: str) -> Optional[Dict]:
+        """
+        종목별 통계 조회 (Sprint 9.2)
+        
+        Args:
+            ticker: 종목 심볼
+            from_date: 시작 날짜 (YYYY-MM-DD)
+        
+        Returns:
+            Dict: {
+                "ticker": "TSLA",
+                "company_name": "Tesla Inc",
+                "total": 100,
+                "positive": 45,
+                "negative": 30,
+                "neutral": 25,
+                "sentiment_avg": 0.35
+            }
+        """
+        try:
+            # ES 집계 쿼리
+            query = {
+                "size": 0,
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {"term": {"ticker_symbol": ticker}},
+                            {"range": {"published_date": {"gte": from_date}}}
+                        ]
+                    }
+                },
+                "aggs": {
+                    "positive_count": {
+                        "filter": {"term": {"sentiment.classification": "positive"}}
+                    },
+                    "negative_count": {
+                        "filter": {"term": {"sentiment.classification": "negative"}}
+                    },
+                    "neutral_count": {
+                        "filter": {"term": {"sentiment.classification": "neutral"}}
+                    },
+                    "avg_sentiment": {
+                        "avg": {"field": "sentiment.score"}
+                    },
+                    "company_name": {
+                        "terms": {"field": "company_name.keyword", "size": 1}
+                    }
+                }
+            }
+            
+            response = self.es.search(index=self.news_index, body=query)
+            
+            total = response['hits']['total']['value']
+            if total == 0:
+                return None
+            
+            aggs = response['aggregations']
+            company_buckets = aggs['company_name']['buckets']
+            company_name = company_buckets[0]['key'] if company_buckets else ticker
+            
+            return {
+                'ticker': ticker,
+                'company_name': company_name,
+                'total': total,
+                'positive': aggs['positive_count']['doc_count'],
+                'negative': aggs['negative_count']['doc_count'],
+                'neutral': aggs['neutral_count']['doc_count'],
+                'sentiment_avg': round(aggs['avg_sentiment']['value'] or 0, 2)
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get ticker statistics for {ticker}: {e}")
+            return None
+    
+    def get_date_statistics(self, tickers: List[str], from_date: str) -> List[Dict]:
+        """
+        일별 통계 조회 (Sprint 9.2)
+        
+        Args:
+            tickers: 종목 심볼 리스트
+            from_date: 시작 날짜 (YYYY-MM-DD)
+        
+        Returns:
+            List[Dict]: [
+                {"date": "2025-11-27", "count": 15},
+                {"date": "2025-11-26", "count": 20}
+            ]
+        """
+        try:
+            query = {
+                "size": 0,
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {"terms": {"ticker_symbol": tickers}},
+                            {"range": {"published_date": {"gte": from_date}}}
+                        ]
+                    }
+                },
+                "aggs": {
+                    "by_date": {
+                        "date_histogram": {
+                            "field": "published_date",
+                            "calendar_interval": "day",
+                            "format": "yyyy-MM-dd",
+                            "order": {"_key": "desc"}
+                        }
+                    }
+                }
+            }
+            
+            response = self.es.search(index=self.news_index, body=query)
+            
+            buckets = response['aggregations']['by_date']['buckets']
+            
+            return [
+                {
+                    'date': bucket['key_as_string'],
+                    'count': bucket['doc_count']
+                }
+                for bucket in buckets
+            ]
+            
+        except Exception as e:
+            logger.error(f"Failed to get date statistics: {e}")
+            return []
+    
     def count_news(
         self,
         ticker_symbols: Optional[List[str]] = None,
@@ -588,3 +715,12 @@ class NewsStorageService:
     def get_statistics(self, ticker: str, days: int = 7) -> Dict:
         """통계 조회"""
         return self._get_adapter().get_statistics(ticker, days)
+    
+    def get_ticker_statistics(self, ticker: str, from_date: str) -> Optional[Dict]:
+        """종목별 통계 조회 (Sprint 9.2)"""
+        return self._get_adapter().get_ticker_statistics(ticker, from_date)
+    
+    def get_date_statistics(self, tickers: List[str], from_date: str) -> List[Dict]:
+        """일별 통계 조회 (Sprint 9.2)"""
+        return self._get_adapter().get_date_statistics(tickers, from_date)
+

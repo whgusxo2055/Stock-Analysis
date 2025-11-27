@@ -1,6 +1,7 @@
 """
 뉴스 관련 라우트
 - 뉴스 조회/히스토리/상세
+- 통계 조회
 """
 
 from flask import Blueprint, render_template, request, jsonify, session
@@ -302,3 +303,116 @@ def get_detail(news_id):
     except Exception as e:
         logger.error(f"Failed to fetch news detail: {e}", exc_info=True)
         return jsonify({'error': '뉴스 조회에 실패했습니다.'}), 500
+
+
+@news_bp.route('/statistics')
+@login_required
+def statistics_page():
+    """통계 페이지 (FR-049, FR-050)"""
+    user_id = session['user_id']
+    
+    # 사용자 관심 종목 조회
+    user_stocks = UserStock.query.filter_by(user_id=user_id).all()
+    ticker_symbols = [us.ticker_symbol for us in user_stocks]
+    
+    return render_template('statistics.html', ticker_symbols=ticker_symbols)
+
+
+@news_bp.route('/api/statistics')
+@login_required
+def api_statistics():
+    """통계 API (FR-049, FR-050)
+    
+    Query Parameters:
+        - period: 7d (default) or 30d
+        - ticker: 특정 종목 (선택적, 없으면 전체)
+    
+    Response:
+        {
+            "success": true,
+            "period": "7d",
+            "ticker": "TSLA" or null,
+            "total_news": 100,
+            "by_ticker": [
+                {
+                    "ticker": "TSLA",
+                    "company_name": "Tesla Inc",
+                    "total": 50,
+                    "positive": 20,
+                    "negative": 15,
+                    "neutral": 15,
+                    "sentiment_avg": 0.45
+                }
+            ],
+            "by_date": [
+                {"date": "2025-11-27", "count": 10},
+                {"date": "2025-11-26", "count": 15}
+            ]
+        }
+    """
+    user_id = session['user_id']
+    
+    # 파라미터 검증
+    period = request.args.get('period', '7d').strip().lower()
+    if period not in ['7d', '30d']:
+        period = '7d'
+    
+    ticker = request.args.get('ticker', '').strip().upper()
+    
+    # 기간 계산
+    days = 7 if period == '7d' else 30
+    from_date = (datetime.utcnow() - timedelta(days=days)).strftime('%Y-%m-%d')
+    
+    # 사용자 관심 종목
+    user_stocks = UserStock.query.filter_by(user_id=user_id).all()
+    user_ticker_symbols = [us.ticker_symbol for us in user_stocks]
+    
+    if not user_ticker_symbols:
+        return jsonify({
+            'success': True,
+            'period': period,
+            'ticker': ticker or None,
+            'total_news': 0,
+            'by_ticker': [],
+            'by_date': []
+        })
+    
+    # 검색할 종목 결정
+    if ticker and ticker in user_ticker_symbols:
+        ticker_symbols = [ticker]
+    else:
+        ticker_symbols = user_ticker_symbols
+        ticker = None
+    
+    try:
+        storage = NewsStorageAdapter()
+        
+        # ES 집계 쿼리 (종목별)
+        ticker_stats = []
+        for symbol in ticker_symbols:
+            stats = storage.get_ticker_statistics(symbol, from_date=from_date)
+            if stats:
+                ticker_stats.append(stats)
+        
+        # 전체 뉴스 수
+        total_news = sum(stat['total'] for stat in ticker_stats)
+        
+        # 일별 집계 (전체 종목)
+        date_stats = storage.get_date_statistics(ticker_symbols, from_date=from_date)
+        
+        return jsonify({
+            'success': True,
+            'period': period,
+            'ticker': ticker,
+            'total_news': total_news,
+            'by_ticker': ticker_stats,
+            'by_date': date_stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to fetch statistics: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': '통계 조회에 실패했습니다.'
+        }), 500
+
