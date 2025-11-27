@@ -2,14 +2,7 @@
 Flask 애플리케이션 팩토리
 """
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_session import Session
 import os
-
-# 전역 확장 인스턴스
-db = SQLAlchemy()
-session = Session()
-
 
 def create_app(config_name='development'):
     """
@@ -28,42 +21,81 @@ def create_app(config_name='development'):
     config = get_config(config_name)
     app.config.from_object(config)
     
+    # Flask 세션용 secret key 설정
+    if not app.config.get('SECRET_KEY'):
+        secret_key = os.environ.get('SECRET_KEY')
+        if not secret_key:
+            if config_name == 'production':
+                raise ValueError("SECRET_KEY must be set in production environment")
+            else:
+                import secrets
+                secret_key = secrets.token_hex(32)
+                app.logger.warning("Using randomly generated SECRET_KEY. Set SECRET_KEY environment variable for persistent sessions.")
+        app.config['SECRET_KEY'] = secret_key
+    
     # 로깅 설정
     from app.utils.logger import setup_logging
     setup_logging(app, log_dir=config.LOG_DIR, log_level=config.LOG_LEVEL)
     
     # 확장 초기화
+    from app.extensions import db
     db.init_app(app)
-    session.init_app(app)
     
-    # Blueprint 등록 (추후 구현)
-    # from app.routes import auth, user, stocks, news, admin
-    # app.register_blueprint(auth.bp)
-    # app.register_blueprint(user.bp)
-    # app.register_blueprint(stocks.bp)
-    # app.register_blueprint(news.bp)
-    # app.register_blueprint(admin.bp)
+    # Blueprint 등록
+    from app.routes.auth import auth_bp
+    from app.routes.main import main_bp
+    from app.routes.stocks import stocks_bp
+    from app.routes.news import news_bp
     
-    # 기본 라우트
-    @app.route('/')
-    def index():
-        return {
-            'status': 'ok',
-            'message': 'Stock Analysis Service API',
-            'version': '1.0.0'
-        }
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(main_bp)
+    app.register_blueprint(stocks_bp)
+    app.register_blueprint(news_bp)
     
+    # 보안 헤더 추가
+    @app.after_request
+    def add_security_headers(response):
+        """보안 헤더 추가"""
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        if config_name == 'production':
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        return response
+    
+    # 에러 핸들러
+    @app.errorhandler(404)
+    def not_found(error):
+        """404 에러 핸들러"""
+        return {'error': 'Not found'}, 404
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        """500 에러 핸들러"""
+        app.logger.error(f"Internal error: {error}")
+        db.session.rollback()
+        return {'error': 'Internal server error'}, 500
+    
+    # 헬스 체크
     @app.route('/health')
     def health():
         """헬스 체크 엔드포인트"""
+        try:
+            # DB 연결 확인
+            db.session.execute(db.text('SELECT 1'))
+            db_status = 'connected'
+        except Exception as e:
+            app.logger.error(f"Health check failed: {e}")
+            db_status = 'disconnected'
+        
         return {
-            'status': 'healthy',
-            'database': 'connected'
+            'status': 'healthy' if db_status == 'connected' else 'unhealthy',
+            'database': db_status
         }
     
     # 데이터베이스 초기화
     with app.app_context():
-        # 테이블 생성 (모델이 정의된 후)
+        # 테이블 생성
         db.create_all()
     
     return app

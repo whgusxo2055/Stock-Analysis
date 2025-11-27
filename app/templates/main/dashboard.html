@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}대시보드 - Stock Analysis{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">
+                <i class="bi bi-house-door"></i> 대시보드
+                <small class="text-muted">최근 24시간 뉴스</small>
+            </h2>
+        </div>
+    </div>
+    
+    <!-- 통계 카드 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-primary">{{ stats.total }}</h3>
+                    <p class="text-muted mb-0">총 뉴스</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-success">{{ stats.positive }}</h3>
+                    <p class="text-muted mb-0">호재</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-danger">{{ stats.negative }}</h3>
+                    <p class="text-muted mb-0">악재</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-secondary">{{ stats.neutral }}</h3>
+                    <p class="text-muted mb-0">중립</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 관심 종목 -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <h5>
+                <i class="bi bi-star-fill text-warning"></i> 관심 종목 ({{ stocks|length }}개)
+            </h5>
+            {% if stocks %}
+            <div class="d-flex flex-wrap gap-2">
+                {% for user_stock, stock in stocks %}
+                <span class="badge bg-light text-dark border">
+                    {{ user_stock.ticker_symbol }} - {{ stock.company_name }}
+                </span>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">
+                관심 종목이 없습니다. 
+                <a href="{{ url_for('stocks.index') }}">종목 추가하기 →</a>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    
+    <hr>
+    
+    <!-- 뉴스 리스트 -->
+    <div class="row">
+        <div class="col-12">
+            <h5 class="mb-3">
+                <i class="bi bi-newspaper"></i> 최신 뉴스
+            </h5>
+            
+            {% if news %}
+                {% for item in news %}
+                <div class="card news-card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title mb-0">
+                                <span class="badge bg-primary me-2">{{ item.ticker }}</span>
+                                {{ item.title }}
+                            </h6>
+                            
+                            {% if item.sentiment_label == 'positive' %}
+                            <span class="sentiment-badge positive">
+                                <i class="bi bi-arrow-up-circle-fill"></i>
+                                호재 (+{{ "%.1f"|format(item.sentiment_score) }})
+                            </span>
+                            {% elif item.sentiment_label == 'negative' %}
+                            <span class="sentiment-badge negative">
+                                <i class="bi bi-arrow-down-circle-fill"></i>
+                                악재 ({{ "%.1f"|format(item.sentiment_score) }})
+                            </span>
+                            {% else %}
+                            <span class="sentiment-badge neutral">
+                                <i class="bi bi-dash-circle-fill"></i>
+                                중립
+                            </span>
+                            {% endif %}
+                        </div>
+                        
+                        <p class="card-text text-muted small mb-2">
+                            {{ item.company_name }}
+                        </p>
+                        
+                        <p class="card-text">
+                            {{ item.summary[:200] }}{% if item.summary|length > 200 %}...{% endif %}
+                        </p>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="bi bi-clock"></i> {{ item.published_date[:10] if item.published_date else 'N/A' }}
+                            </small>
+                            <a href="{{ item.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                원문 보기 <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> 
+                최근 24시간 내 새로운 뉴스가 없습니다.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if news|length >= 20 %}
+    <div class="text-center mt-4">
+        <a href="{{ url_for('news.news_page') }}" class="btn btn-primary">
+            더 많은 뉴스 보기 <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

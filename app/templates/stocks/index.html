@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}관심 종목 관리 - Stock Analysis{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">
+                <i class="bi bi-star-fill text-warning"></i> 관심 종목 관리
+            </h2>
+        </div>
+    </div>
+    
+    <!-- 종목 추가 폼 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-plus-circle"></i> 종목 추가</h5>
+                </div>
+                <div class="card-body">
+                    <form id="addStockForm">
+                        <div class="mb-3">
+                            <label for="tickerSelect" class="form-label">종목 선택</label>
+                            <select class="form-select" id="tickerSelect" name="ticker_symbol" required>
+                                <option value="">종목을 선택하세요</option>
+                                {% for stock in all_stocks %}
+                                <option value="{{ stock.ticker_symbol }}">
+                                    {{ stock.ticker_symbol }} - {{ stock.company_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-plus"></i> 추가하기
+                        </button>
+                    </form>
+                    
+                    <div id="addMessage" class="mt-3" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 통계 -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h1 class="text-primary">{{ user_stocks|length }}</h1>
+                    <p class="text-muted mb-0">관심 종목</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 관심 종목 목록 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-list-ul"></i> 내 관심 종목</h5>
+                </div>
+                <div class="card-body">
+                    {% if user_stocks %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>티커</th>
+                                    <th>회사명</th>
+                                    <th>거래소</th>
+                                    <th>섹터</th>
+                                    <th>추가일</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="stocksList">
+                                {% for user_stock, stock in user_stocks %}
+                                <tr data-stock-id="{{ user_stock.id }}">
+                                    <td><strong>{{ user_stock.ticker_symbol }}</strong></td>
+                                    <td>{{ stock.company_name }}</td>
+                                    <td>{{ stock.exchange or 'N/A' }}</td>
+                                    <td>{{ stock.sector or 'N/A' }}</td>
+                                    <td>{{ user_stock.created_at.strftime('%Y-%m-%d') if user_stock.created_at else 'N/A' }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-danger" onclick="removeStock({{ user_stock.id }})">
+                                            <i class="bi bi-trash"></i> 삭제
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        아직 추가한 관심 종목이 없습니다. 위에서 종목을 추가해보세요!
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 종목 추가
+document.getElementById('addStockForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const tickerSymbol = document.getElementById('tickerSelect').value;
+    const messageDiv = document.getElementById('addMessage');
+    
+    if (!tickerSymbol) {
+        showMessage('종목을 선택해주세요.', 'danger');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/stocks/api/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ticker_symbol: tickerSymbol })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showMessage('종목이 추가되었습니다!', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showMessage(data.error || '종목 추가에 실패했습니다.', 'danger');
+        }
+    } catch (error) {
+        showMessage('오류가 발생했습니다: ' + error.message, 'danger');
+    }
+});
+
+// 종목 삭제
+async function removeStock(stockId) {
+    if (!confirm('이 종목을 삭제하시겠습니까?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/stocks/api/remove/${stockId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // 테이블에서 행 제거
+            const row = document.querySelector(`tr[data-stock-id="${stockId}"]`);
+            if (row) {
+                row.remove();
+            }
+            
+            showMessage('종목이 삭제되었습니다.', 'success');
+            
+            // 목록이 비었으면 리로드
+            if (document.querySelectorAll('#stocksList tr').length === 0) {
+                setTimeout(() => location.reload(), 1000);
+            }
+        } else {
+            alert(data.error || '종목 삭제에 실패했습니다.');
+        }
+    } catch (error) {
+        alert('오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 메시지 표시
+function showMessage(text, type) {
+    const messageDiv = document.getElementById('addMessage');
+    messageDiv.className = `alert alert-${type}`;
+    messageDiv.textContent = text;
+    messageDiv.style.display = 'block';
+    
+    setTimeout(() => {
+        messageDiv.style.display = 'none';
+    }, 3000);
+}
+</script>
+{% endblock %}

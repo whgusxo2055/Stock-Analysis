@@ -23,6 +23,9 @@ class NewsStorageAdapter:
     def __init__(self):
         """어댑터 초기화"""
         self.es_client = get_es_client()
+        # 테스트용 별칭 추가
+        self.es = self.es_client
+        self.news_index = self.es_client.index_name
         self._validate_connection()
     
     def _validate_connection(self):
@@ -340,6 +343,114 @@ class NewsStorageAdapter:
             page=1
         )
         return result['hits']
+
+    def check_duplicates(self, urls: List[str]) -> set:
+        """
+        URL 목록에서 중복된 뉴스 URL 확인
+        
+        Args:
+            urls (List[str]): 확인할 URL 리스트
+        
+        Returns:
+            set: 이미 저장된 URL 집합
+        """
+        if not urls:
+            return set()
+        
+        try:
+            # URL 필드로 검색
+            query = {
+                "bool": {
+                    "should": [
+                        {"term": {"url.keyword": url}} for url in urls
+                    ],
+                    "minimum_should_match": 1
+                }
+            }
+            
+            response = self.es_client.client.search(
+                index=self.es_client.index_name,
+                query=query,
+                size=len(urls),
+                _source=["url"]
+            )
+            
+            existing_urls = {
+                hit['_source']['url'] 
+                for hit in response['hits']['hits']
+            }
+            
+            logger.debug(f"Found {len(existing_urls)} existing URLs out of {len(urls)}")
+            
+            return existing_urls
+            
+        except Exception as e:
+            logger.error(f"Error checking duplicates: {e}")
+            return set()
+    
+    def get_news_by_id(self, news_id: str) -> Optional[Dict]:
+        """
+        뉴스 ID로 단일 뉴스 조회
+        
+        Args:
+            news_id: 뉴스 ID
+        
+        Returns:
+            Dict: 뉴스 데이터 또는 None
+        """
+        try:
+            result = self.es_client.get_document(news_id)
+            return result
+        except Exception as e:
+            logger.error(f"Failed to get news by ID {news_id}: {e}")
+            return None
+    
+    def count_news(
+        self,
+        ticker_symbols: Optional[List[str]] = None,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        sentiment: Optional[str] = None
+    ) -> int:
+        """
+        조건에 맞는 뉴스 개수 반환
+        
+        Args:
+            ticker_symbols: 종목 코드 리스트
+            from_date: 시작 날짜
+            to_date: 종료 날짜
+            sentiment: 감성 분류
+        
+        Returns:
+            int: 뉴스 개수
+        """
+        try:
+            # 검색 조건 구성
+            must = []
+            
+            if ticker_symbols:
+                must.append({"terms": {"ticker_symbol": ticker_symbols}})
+            
+            if from_date or to_date:
+                date_range = {}
+                if from_date:
+                    date_range["gte"] = from_date
+                if to_date:
+                    date_range["lte"] = to_date
+                must.append({"range": {"published_date": date_range}})
+            
+            if sentiment:
+                must.append({"term": {"sentiment.classification": sentiment}})
+            
+            query = {"bool": {"must": must}} if must else {"match_all": {}}
+            
+            # Count API 사용
+            result = self.es.count(index=self.news_index, body={"query": query})
+            return result.get('count', 0)
+            
+        except Exception as e:
+            logger.error(f"Failed to count news: {e}")
+            return 0
 
 
 # 싱글톤 인스턴스

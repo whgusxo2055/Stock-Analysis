@@ -19,6 +19,7 @@ class Config:
     
     # 데이터베이스 설정
     DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///data/app.db')
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = DEBUG
     
@@ -40,6 +41,7 @@ class Config:
     CRAWLER_TYPE = os.getenv('CRAWLER_TYPE', 'selenium')
     HEADLESS = os.getenv('HEADLESS', 'true').lower() == 'true'
     CRAWL_TIMEOUT = int(os.getenv('CRAWL_TIMEOUT', '30'))
+    USER_AGENT = os.getenv('USER_AGENT', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
     
     # 스케줄러 설정
     CRAWL_INTERVAL_HOURS = int(os.getenv('CRAWL_INTERVAL_HOURS', '3'))

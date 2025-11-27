@@ -3,7 +3,7 @@ SQLAlchemy 데이터베이스 모델
 SRS Section 7.1 참조
 """
 from datetime import datetime
-from app import db
+from app.extensions import db
 from werkzeug.security import generate_password_hash, check_password_hash
 
 

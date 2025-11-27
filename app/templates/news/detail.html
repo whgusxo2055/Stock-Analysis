@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}{{ news.title }} - Stock Analysis{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/">홈</a></li>
+                    <li class="breadcrumb-item"><a href="/news/">뉴스</a></li>
+                    <li class="breadcrumb-item active">상세</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <!-- 헤더 -->
+                    <div class="mb-3">
+                        {% for ticker in news.ticker_symbols %}
+                        <span class="badge bg-primary me-1">{{ ticker }}</span>
+                        {% endfor %}
+                        
+                        {% if news.sentiment_score is defined %}
+                            {% if news.sentiment_label == 'positive' %}
+                                <span class="sentiment-badge positive">
+                                    호재 (+{{ "%.1f"|format(news.sentiment_score) }})
+                                </span>
+                            {% elif news.sentiment_label == 'negative' %}
+                                <span class="sentiment-badge negative">
+                                    악재 ({{ "%.1f"|format(news.sentiment_score) }})
+                                </span>
+                            {% else %}
+                                <span class="sentiment-badge neutral">
+                                    중립 ({{ "%.1f"|format(news.sentiment_score) }})
+                                </span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    
+                    <h2 class="mb-3">{{ news.title }}</h2>
+                    
+                    <p class="text-muted">
+                        <i class="bi bi-calendar"></i> 
+                        {{ news.published_at.strftime('%Y-%m-%d %H:%M') if news.published_at else 'N/A' }}
+                    </p>
+                    
+                    <a href="{{ news.url }}" target="_blank" class="btn btn-outline-primary mb-4">
+                        <i class="bi bi-box-arrow-up-right"></i> 원문 보기
+                    </a>
+                    
+                    <!-- 요약 탭 -->
+                    <ul class="nav nav-tabs" id="summaryTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="ko-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#ko" type="button" role="tab">
+                                한국어
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="en-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#en" type="button" role="tab">
+                                English
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ja-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#ja" type="button" role="tab">
+                                日本語
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="zh-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#zh" type="button" role="tab">
+                                中文
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content mt-3" id="summaryTabContent">
+                        <div class="tab-pane fade show active" id="ko" role="tabpanel">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">한국어 요약</h5>
+                                    <p class="card-text">
+                                        {{ news.summary_ko or '요약이 없습니다.' }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-pane fade" id="en" role="tabpanel">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">English Summary</h5>
+                                    <p class="card-text">
+                                        {{ news.summary_en or 'No summary available.' }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-pane fade" id="ja" role="tabpanel">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">日本語要約</h5>
+                                    <p class="card-text">
+                                        {{ news.summary_ja or '要約がありません。' }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-pane fade" id="zh" role="tabpanel">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">中文摘要</h5>
+                                    <p class="card-text">
+                                        {{ news.summary_zh or '没有摘要。' }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 감성 분석 상세 -->
+                    {% if news.sentiment_score is defined %}
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-graph-up"></i> 감성 분석 상세</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <h6>감성 점수</h6>
+                                    <h3 class="{% if news.sentiment_label == 'positive' %}text-success{% elif news.sentiment_label == 'negative' %}text-danger{% else %}text-secondary{% endif %}">
+                                        {{ "%.2f"|format(news.sentiment_score) }}
+                                    </h3>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6>감성 레이블</h6>
+                                    <h4>
+                                        {% if news.sentiment_label == 'positive' %}
+                                            <span class="badge bg-success">호재</span>
+                                        {% elif news.sentiment_label == 'negative' %}
+                                            <span class="badge bg-danger">악재</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">중립</span>
+                                        {% endif %}
+                                    </h4>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6>분석 시각</h6>
+                                    <p class="text-muted">
+                                        {{ news.analyzed_at.strftime('%Y-%m-%d %H:%M') if news.analyzed_at else 'N/A' }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- 메타 정보 -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-info-circle"></i> 메타 정보</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>뉴스 ID:</strong> {{ news.news_id }}</p>
+                                    <p><strong>소스:</strong> {{ news.source or 'N/A' }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>수집일:</strong> {{ news.collected_at.strftime('%Y-%m-%d %H:%M') if news.collected_at else 'N/A' }}</p>
+                                    <p><strong>관련 종목:</strong> {{ news.ticker_symbols|join(', ') }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-3">
+                <a href="/news/" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> 목록으로
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

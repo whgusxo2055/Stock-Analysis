@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}뉴스 히스토리 - Stock Analysis{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">
+                <i class="bi bi-newspaper"></i> 뉴스 히스토리
+            </h2>
+        </div>
+    </div>
+    
+    <!-- 필터 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-funnel"></i> 필터</h5>
+                </div>
+                <div class="card-body">
+                    <form id="filterForm" method="GET" action="/news/">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <label for="tickerFilter" class="form-label">종목</label>
+                                <select class="form-select" id="tickerFilter" name="ticker">
+                                    <option value="">전체</option>
+                                    {% for stock in user_stocks %}
+                                    <option value="{{ stock.ticker_symbol }}" 
+                                            {% if request.args.get('ticker') == stock.ticker_symbol %}selected{% endif %}>
+                                        {{ stock.ticker_symbol }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-3 mb-3">
+                                <label for="fromDate" class="form-label">시작일</label>
+                                <input type="date" class="form-control" id="fromDate" name="from" 
+                                       value="{{ request.args.get('from', '') }}">
+                            </div>
+                            
+                            <div class="col-md-3 mb-3">
+                                <label for="toDate" class="form-label">종료일</label>
+                                <input type="date" class="form-control" id="toDate" name="to" 
+                                       value="{{ request.args.get('to', '') }}">
+                            </div>
+                            
+                            <div class="col-md-3 mb-3">
+                                <label for="sentimentFilter" class="form-label">감성</label>
+                                <select class="form-select" id="sentimentFilter" name="sentiment">
+                                    <option value="">전체</option>
+                                    <option value="positive" {% if request.args.get('sentiment') == 'positive' %}selected{% endif %}>
+                                        호재
+                                    </option>
+                                    <option value="negative" {% if request.args.get('sentiment') == 'negative' %}selected{% endif %}>
+                                        악재
+                                    </option>
+                                    <option value="neutral" {% if request.args.get('sentiment') == 'neutral' %}selected{% endif %}>
+                                        중립
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-search"></i> 검색
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="resetFilters()">
+                                <i class="bi bi-arrow-clockwise"></i> 초기화
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 뉴스 목록 -->
+    <div class="row">
+        <div class="col-12">
+            {% if news_list %}
+            <div class="mb-3 text-muted">
+                총 {{ total }}개의 뉴스 ({{ page }}/{{ (total // per_page) + (1 if total % per_page > 0 else 0) }}페이지)
+            </div>
+            
+            <div class="row">
+                {% for news in news_list %}
+                <div class="col-md-6 mb-3">
+                    <div class="card news-card h-100">
+                        <div class="card-body">
+                            <div class="mb-2">
+                                {% for ticker in news.ticker_symbols %}
+                                <span class="badge bg-primary">{{ ticker }}</span>
+                                {% endfor %}
+                                
+                                {% if news.sentiment_score is defined %}
+                                    {% if news.sentiment_label == 'positive' %}
+                                        <span class="sentiment-badge positive">
+                                            호재 (+{{ "%.1f"|format(news.sentiment_score) }})
+                                        </span>
+                                    {% elif news.sentiment_label == 'negative' %}
+                                        <span class="sentiment-badge negative">
+                                            악재 ({{ "%.1f"|format(news.sentiment_score) }})
+                                        </span>
+                                    {% else %}
+                                        <span class="sentiment-badge neutral">
+                                            중립 ({{ "%.1f"|format(news.sentiment_score) }})
+                                        </span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            
+                            <h5 class="card-title">
+                                <a href="/news/{{ news.news_id }}" class="text-decoration-none">
+                                    {{ news.title }}
+                                </a>
+                            </h5>
+                            
+                            <p class="card-text text-muted small mb-2">
+                                {{ news.published_at.strftime('%Y-%m-%d %H:%M') if news.published_at else 'N/A' }}
+                            </p>
+                            
+                            <p class="card-text">
+                                {{ news.summary_ko[:200] if news.summary_ko else '요약 없음' }}
+                                {% if news.summary_ko and news.summary_ko|length > 200 %}...{% endif %}
+                            </p>
+                            
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <a href="{{ news.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-box-arrow-up-right"></i> 원문 보기
+                                </a>
+                                <a href="/news/{{ news.news_id }}" class="btn btn-sm btn-primary">
+                                    상세 보기
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- 페이지네이션 -->
+            {% if total > per_page %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% set total_pages = (total // per_page) + (1 if total % per_page > 0 else 0) %}
+                    
+                    <!-- 이전 페이지 -->
+                    <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('news.news_page', page=page-1, ticker=request.args.get('ticker'), **request.args) }}">
+                            이전
+                        </a>
+                    </li>
+                    
+                    <!-- 페이지 번호 -->
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == page or (p >= page - 2 and p <= page + 2) or p == 1 or p == total_pages %}
+                        <li class="page-item {% if p == page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('news.news_page', page=p, ticker=request.args.get('ticker'), **request.args) }}">
+                                {{ p }}
+                            </a>
+                        </li>
+                        {% elif (p == page - 3 or p == page + 3) %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <!-- 다음 페이지 -->
+                    <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('news.news_page', page=page+1, ticker=request.args.get('ticker'), **request.args) }}">
+                            다음
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+            
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> 
+                검색 조건에 맞는 뉴스가 없습니다.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function resetFilters() {
+    document.getElementById('filterForm').reset();
+    window.location.href = '/news/';
+}
+</script>
+{% endblock %}
