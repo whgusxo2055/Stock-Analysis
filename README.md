@@ -201,29 +201,36 @@ stats = storage.get_statistics("TSLA", days=7)
 
 ## 🧪 테스트
 
-### Phase 1 테스트
+### 단위 테스트 (42개)
 
 ```bash
-# Phase 1 검증 (기반 인프라)
-pytest test_phase1.py -v
+# 모델 테스트 (15개 테스트)
+pytest tests/test_models.py -v
 
-# 6개 테스트: imports, config, logging, app, database, API
+# 크롤러 테스트 (13개 테스트)
+pytest tests/test_crawler.py -v
+
+# 분석기 테스트 (14개 테스트)
+pytest tests/test_analyzer.py -v
 ```
 
-### Phase 2 테스트
+### 통합 테스트 (13개)
 
 ```bash
-# ElasticSearch 인덱스 매핑 테스트
-pytest tests/test_es_mapping.py -v  # 7개 테스트
+# End-to-End 파이프라인 테스트
+pytest tests/test_integration.py -v
+```
 
-# ILM 정책 테스트
-pytest tests/test_ilm.py -v  # 5개 테스트
+### 성능 테스트
 
-# 뉴스 저장 어댑터 단위 테스트
-pytest tests/test_news_storage.py -v  # 13개 테스트
+```bash
+# NFR 성능 요구사항 테스트
+python tests/test_performance.py
 
-# Phase 2 통합 테스트
-pytest tests/test_phase2_integration.py -v  # 4개 테스트
+# 테스트 항목:
+# - NFR-001: 페이지 로딩 3초 이내 ✓
+# - NFR-002: ElasticSearch 쿼리 1초 이내 ✓
+# - NFR-004: 동시 3명 사용자 지원 ✓
 ```
 
 ### 모든 테스트 실행
@@ -238,6 +245,59 @@ pytest --cov=app --cov-report=html
 # 특정 디렉토리 테스트
 pytest tests/ -v
 ```
+
+### 테스트 현황
+
+| 카테고리 | 테스트 수 | 상태 |
+|---------|----------|------|
+| 모델 단위 테스트 | 15개 | ✅ 통과 |
+| 크롤러 단위 테스트 | 13개 | ✅ 통과 |
+| 분석기 단위 테스트 | 14개 | ✅ 통과 |
+| 통합 테스트 | 13개 | ✅ 통과 |
+| 성능 테스트 | 3개 | ✅ 통과 |
+| **총합** | **58개** | **✅ 모두 통과** |
+
+## 🚀 배포
+
+### Docker를 이용한 배포 (권장)
+
+```bash
+# 배포 스크립트 사용
+./scripts/deploy.sh deploy
+
+# 서비스 상태 확인
+./scripts/deploy.sh status
+
+# 로그 확인
+./scripts/deploy.sh logs
+
+# 롤백
+./scripts/deploy.sh rollback
+```
+
+### 수동 배포
+
+```bash
+# Docker Compose로 직접 배포
+docker-compose -f docker-compose.yml build
+docker-compose -f docker-compose.yml up -d
+```
+
+### 프로덕션 환경 설정
+
+```bash
+# 환경 변수 설정
+cp .env.production .env
+# .env 파일을 열어 실제 값 입력
+
+# 필수 환경 변수:
+# - OPENAI_API_KEY: OpenAI API 키
+# - GMAIL_USERNAME: 이메일 발송 계정
+# - GMAIL_APP_PASSWORD: Gmail 앱 비밀번호
+# - SECRET_KEY: Flask 시크릿 키 (운영환경용)
+```
+
+자세한 운영 가이드는 [운영 핸드북](docs/OPERATIONS.md)을 참조하세요.
 
 ## 🔍 API 엔드포인트
 
@@ -286,27 +346,38 @@ pytest tests/ -v
 - [x] ElasticSearch 인덱스 매핑 (SRS 7.2.1)
 - [x] ILM 정책 구현 (2년 보관, SRS 3.5.3)
 - [x] 뉴스 저장 어댑터 (NewsStorageAdapter)
-- [x] 단위 테스트 (13개) 및 통합 테스트 (4개)
+- [x] 단위 테스트 및 통합 테스트
 
-### Phase 3: 크롤러 MVP
-- [ ] Selenium 설정
-- [ ] Investing.com 파싱
+### Phase 3: 크롤러 MVP (완료 ✅)
+- [x] Selenium + Chrome WebDriver 설정
+- [x] Yahoo Finance 뉴스 크롤링
+- [x] 티커별 뉴스 URL 생성
+- [x] 중복 필터링 및 최신순 정렬
 
-### Phase 4: 분석 & 저장 파이프라인
-- [ ] ChatGPT 프롬프트
-- [ ] 다국어 요약 및 감성 분석
+### Phase 4: 분석 & 저장 파이프라인 (완료 ✅)
+- [x] ChatGPT API 연동 (gpt-4o-mini)
+- [x] 뉴스 요약 및 감성 분석
+- [x] 호재/악재 판단 (-1.0 ~ +1.0)
+- [x] ElasticSearch 저장 파이프라인
 
-### Phase 5: 웹 UI / API
-- [ ] 인증, 종목 관리
-- [ ] 뉴스 조회, 통계
+### Phase 5: 웹 UI / API (완료 ✅)
+- [x] Flask-Login 기반 인증
+- [x] 관심 종목 관리 (CRUD)
+- [x] 뉴스 조회 및 검색
+- [x] 대시보드 및 통계 시각화
 
-### Phase 6: 메일 & 스케줄러
-- [ ] HTML 메일 템플릿
-- [ ] APScheduler 작업
+### Phase 6: 메일 & 스케줄러 (완료 ✅)
+- [x] HTML 메일 템플릿
+- [x] Gmail SMTP 연동
+- [x] APScheduler 크롤링 작업 (3시간 주기)
+- [x] 메일 발송 스케줄링
 
-### Phase 7: 테스트/배포
-- [ ] 단위 및 통합 테스트
-- [ ] 서버 배포
+### Phase 7: 테스트/배포 (완료 ✅)
+- [x] 단위 테스트 (42개)
+- [x] 통합 테스트 (13개)
+- [x] 성능 테스트 (NFR 충족)
+- [x] 배포 스크립트
+- [x] 운영 핸드북
 
 ## 🤝 기여
 
@@ -322,6 +393,5 @@ pytest tests/ -v
 
 ---
 
-**현재 상태**: Phase 2 완료 ✅  
-**다음 단계**: Phase 3 (크롤러 MVP)  
-**마지막 업데이트**: 2025-01-20
+**현재 상태**: Phase 7 완료 ✅ (전체 개발 완료)  
+**마지막 업데이트**: 2025-01-06
