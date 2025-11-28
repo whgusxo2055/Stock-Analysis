@@ -166,12 +166,13 @@ def search_stocks():
         return jsonify({'error': '검색어가 너무 깁니다.'}), 400
     
     try:
-        # 티커 심볼 또는 회사명으로 검색 (대소문자 무시)
+        # 티커 심볼, 영문 회사명, 한국어 회사명으로 검색 (대소문자 무시)
         search_pattern = f'%{query}%'
         stocks = StockMaster.query.filter(
             db.or_(
                 StockMaster.ticker_symbol.ilike(search_pattern),
-                StockMaster.company_name.ilike(search_pattern)
+                StockMaster.company_name.ilike(search_pattern),
+                StockMaster.company_name_ko.ilike(search_pattern)
             )
         ).order_by(
             # 정확히 일치하는 티커를 우선 표시
@@ -192,6 +193,7 @@ def search_stocks():
         results = [{
             'ticker': s.ticker_symbol,
             'name': s.company_name,
+            'name_ko': s.company_name_ko,
             'exchange': s.exchange,
             'sector': s.sector,
             'is_watchlist': s.ticker_symbol in user_watchlist

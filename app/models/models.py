@@ -86,6 +86,7 @@ class StockMaster(db.Model):
     
     ticker_symbol = db.Column(db.String(10), primary_key=True)
     company_name = db.Column(db.String(200), nullable=False)
+    company_name_ko = db.Column(db.String(200), nullable=True)  # 한국어 회사명
     exchange = db.Column(db.String(50))  # NYSE, NASDAQ, etc.
     sector = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -98,6 +99,7 @@ class StockMaster(db.Model):
         return {
             'ticker_symbol': self.ticker_symbol,
             'company_name': self.company_name,
+            'company_name_ko': self.company_name_ko,
             'exchange': self.exchange,
             'sector': self.sector,
             'created_at': self.created_at.isoformat()
