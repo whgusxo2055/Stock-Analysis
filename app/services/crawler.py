@@ -67,9 +67,9 @@ TICKER_TO_INVESTING_SLUG = {
     'GOOG': 'google-inc-c',
     'MSFT': 'microsoft-corp',
     'AMZN': 'amazon-com-inc',
-    'META': 'meta-platforms',
+    'META': 'facebook-inc',  # investing.com uses old Facebook slug
     'NVDA': 'nvidia-corp',
-    'AMD': 'advanced-micro-device',
+    'AMD': 'adv-micro-device',  # investing.com uses abbreviated form
     'NFLX': 'netflix-inc',
     'INTC': 'intel-corp',
     'CRM': 'salesforce-com',
@@ -78,7 +78,7 @@ TICKER_TO_INVESTING_SLUG = {
     'CSCO': 'cisco-systems-inc',
     'ADBE': 'adobe-sys-inc',
     'PYPL': 'paypal-holdings-inc',
-    'SQ': 'square-inc',
+    'SQ': 'block',  # Square rebranded to Block Inc
     'SHOP': 'shopify-inc',
     'UBER': 'uber-technologies-inc',
     'LYFT': 'lyft-inc',
@@ -123,7 +123,7 @@ TICKER_TO_INVESTING_SLUG = {
     'MRK': 'merck-co-inc',
     'ABBV': 'abbvie-inc',
     'UNH': 'unitedhealth-group',
-    'CVS': 'cvs-health-corp',
+    'CVS': 'cvs-corp',  # investing.com uses cvs-corp
     'BA': 'boeing-co',
     'CAT': 'caterpillar-inc',
     'GE': 'general-electric',
@@ -135,17 +135,10 @@ TICKER_TO_INVESTING_SLUG = {
 }
 
 # ETF 티커 매핑 (investing.com 구조가 다름)
+# 검증 완료된 ETF만 포함 (2024.11.28)
 TICKER_TO_ETF_SLUG = {
     'SPY': 'spdr-s-p-500',
-    'QQQ': 'invesco-qqq-trust',
-    'IWM': 'ishares-russell-2000-etf',
-    'DIA': 'spdr-djia-trust',
-    'VOO': 'vanguard-s-p-500-etf',
-    'VTI': 'vanguard-total-stock-market-etf',
-    'EEM': 'ishares-msci-emerging-markets',
     'GLD': 'spdr-gold-trust',
-    'XLF': 'financial-select-sector-spdr',
-    'XLE': 'energy-select-sector-spdr',
 }
 
 

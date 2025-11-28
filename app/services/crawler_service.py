@@ -44,7 +44,7 @@ class CrawlerService:
     def crawl_ticker(
         self,
         ticker: str,
-        hours_ago: int = 3,
+        hours_ago: int = 6,
         max_retries: int = 3
     ) -> Dict[str, any]:
         """
@@ -127,7 +127,7 @@ class CrawlerService:
 
     def crawl_all_tickers(
         self,
-        hours_ago: int = 3,
+        hours_ago: int = 6,
         max_retries: int = 3
     ) -> List[Dict[str, any]]:
         """
