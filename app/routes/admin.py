@@ -318,20 +318,24 @@ def api_trigger_email():
     """
     try:
         from app.services.scheduler import SchedulerService
+        from flask import current_app
         from threading import Thread
         
-        scheduler = SchedulerService()
         if SchedulerService._scheduler is None:
             return jsonify({
                 'success': False,
                 'error': '스케줄러가 초기화되지 않았습니다.'
             }), 500
         
-        # 별도 스레드에서 이메일 작업 실행
+        scheduler = SchedulerService()
+        
+        # 별도 스레드에서 이메일 작업 실행 (Flask 앱 컨텍스트 포함)
         def run_email():
-            scheduler._run_email_job()
+            with current_app.app_context():
+                scheduler._run_email_job()
         
         thread = Thread(target=run_email)
+        thread.daemon = True
         thread.start()
         
         logger.info(f"Email job triggered manually by admin {session.get('username')}")

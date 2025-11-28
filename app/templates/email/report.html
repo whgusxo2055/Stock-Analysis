@@ -434,7 +434,7 @@
                             
                             <div class="news-meta-bottom">
                                 <span class="news-date">
-                                    {{ news.published_date[:10] if news.published_date else news.date[:10] if news.date else '' }}
+                                    {{ (news.published_date[:10] if news.published_date else news.date[:10] if news.date else '')|replace('-', '.') }}
                                 </span>
                                 
                                 {% if news.source_url or news.url %}
