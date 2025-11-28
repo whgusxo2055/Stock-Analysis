@@ -6,19 +6,21 @@ services:
     build: .
     container_name: stock-analysis-app
     ports:
-      - "5000:5000"
+      - "5001:5000"
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./flask_session:/app/flask_session
+      - ./instance:/app/instance
     environment:
       - FLASK_ENV=production
-      - DATABASE_URL=sqlite:///data/app.db
+      - DATABASE_URL=sqlite:////app/instance/stock_analysis.db
       - ELASTICSEARCH_URL=http://elasticsearch:9200
     env_file:
       - .env
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
     networks:
       - stock-analysis-network
     restart: unless-stopped

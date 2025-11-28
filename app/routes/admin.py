@@ -219,6 +219,56 @@ def api_update_user(user_id):
         }), 500
 
 
+@admin_bp.route('/api/test-email', methods=['POST'])
+@login_required
+@admin_required
+def api_test_email():
+    """
+    테스트 이메일 발송 API
+    SRS 8.5: POST /api/admin/test-email
+    """
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        
+        # user_id가 없으면 현재 관리자에게 발송
+        if not user_id:
+            current_user = get_current_user()
+            user_id = current_user.id
+        
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': '사용자를 찾을 수 없습니다.'
+            }), 404
+        
+        # 이메일 발송
+        from app.services.email_sender import EmailSender
+        
+        email_sender = EmailSender()
+        success, error = email_sender.send_test_email(user)
+        
+        if success:
+            logger.info(f"Test email sent to {user.email} by admin {session.get('username')}")
+            return jsonify({
+                'success': True,
+                'message': f'{user.email}로 테스트 이메일을 발송했습니다.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error or '이메일 발송에 실패했습니다.'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error sending test email: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @admin_bp.route('/api/system-status', methods=['GET'])
 @login_required
 @admin_required
@@ -256,21 +306,21 @@ def _get_elasticsearch_status():
     try:
         es = get_es_client()
         
-        # 연결 확인
-        if not es.ping():
+        # 연결 확인 (ElasticsearchClient 래퍼 사용)
+        if not es.is_connected():
             return {
                 'status': 'disconnected',
                 'documents': 0,
                 'index': 'news_analysis'
             }
         
-        # 문서 수 조회
-        count = es.count(index='news_analysis')
+        # 문서 수 조회 (내부 client 사용)
+        count_result = es.client.count(index=es.index_name)
         
         return {
             'status': 'connected',
-            'documents': count['count'],
-            'index': 'news_analysis'
+            'documents': count_result['count'],
+            'index': es.index_name
         }
     except Exception as e:
         logger.error(f"Error checking ES status: {e}")
@@ -348,12 +398,12 @@ def _get_email_status():
 def _get_scheduler_status():
     """스케줄러 상태 조회"""
     try:
-        # APScheduler 인스턴스 가져오기
-        from flask import current_app
+        # SchedulerService 클래스에서 직접 스케줄러 가져오기
+        from app.services.scheduler import SchedulerService
         
-        scheduler = current_app.extensions.get('apscheduler')
+        scheduler = SchedulerService._scheduler
         
-        if not scheduler:
+        if scheduler is None:
             return {
                 'status': 'not_configured',
                 'jobs': []
@@ -361,13 +411,12 @@ def _get_scheduler_status():
         
         # 실행 중인 작업 목록
         jobs = []
-        if hasattr(scheduler, 'get_jobs'):
-            for job in scheduler.get_jobs():
-                jobs.append({
-                    'id': job.id,
-                    'name': job.name,
-                    'next_run': job.next_run_time.isoformat() if job.next_run_time else None
-                })
+        for job in scheduler.get_jobs():
+            jobs.append({
+                'id': job.id,
+                'name': job.name,
+                'next_run': job.next_run_time.isoformat() if job.next_run_time else None
+            })
         
         return {
             'status': 'running' if scheduler.running else 'stopped',
