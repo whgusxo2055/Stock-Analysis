@@ -270,6 +270,84 @@ def api_test_email():
         }), 500
 
 
+@admin_bp.route('/api/trigger/crawl', methods=['POST'])
+@login_required
+@admin_required
+def api_trigger_crawl():
+    """
+    수동 크롤링 트리거 API
+    """
+    try:
+        from app.services.scheduler import SchedulerService
+        from threading import Thread
+        
+        scheduler = SchedulerService()
+        if SchedulerService._scheduler is None:
+            return jsonify({
+                'success': False,
+                'error': '스케줄러가 초기화되지 않았습니다.'
+            }), 500
+        
+        # 별도 스레드에서 크롤링 작업 실행
+        def run_crawl():
+            scheduler._run_crawl_job()
+        
+        thread = Thread(target=run_crawl)
+        thread.start()
+        
+        logger.info(f"Crawl job triggered manually by admin {session.get('username')}")
+        return jsonify({
+            'success': True,
+            'message': '크롤링 작업이 시작되었습니다. 완료까지 몇 분이 소요될 수 있습니다.'
+        })
+            
+    except Exception as e:
+        logger.error(f"Error triggering crawl: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@admin_bp.route('/api/trigger/email', methods=['POST'])
+@login_required
+@admin_required
+def api_trigger_email():
+    """
+    수동 이메일 발송 트리거 API
+    """
+    try:
+        from app.services.scheduler import SchedulerService
+        from threading import Thread
+        
+        scheduler = SchedulerService()
+        if SchedulerService._scheduler is None:
+            return jsonify({
+                'success': False,
+                'error': '스케줄러가 초기화되지 않았습니다.'
+            }), 500
+        
+        # 별도 스레드에서 이메일 작업 실행
+        def run_email():
+            scheduler._run_email_job()
+        
+        thread = Thread(target=run_email)
+        thread.start()
+        
+        logger.info(f"Email job triggered manually by admin {session.get('username')}")
+        return jsonify({
+            'success': True,
+            'message': '이메일 발송 작업이 시작되었습니다.'
+        })
+            
+    except Exception as e:
+        logger.error(f"Error triggering email: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @admin_bp.route('/api/system-status', methods=['GET'])
 @login_required
 @admin_required

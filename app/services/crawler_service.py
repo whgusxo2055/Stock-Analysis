@@ -77,6 +77,7 @@ class CrawlerService:
             with InvestingCrawler() as crawler:
                 news_items, error = crawler.crawl_with_retry(
                     ticker=ticker,
+                    company_name=company_name,
                     hours_ago=hours_ago,
                     max_retries=max_retries
                 )

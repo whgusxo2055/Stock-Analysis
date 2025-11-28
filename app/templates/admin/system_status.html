@@ -90,6 +90,12 @@
 
 <div class="container mb-5">
     <div class="text-end mb-3">
+        <button class="btn btn-success me-2" onclick="triggerCrawl()">
+            <i class="bi bi-play-fill"></i> 크롤링 수동 실행
+        </button>
+        <button class="btn btn-info me-2" onclick="triggerEmail()">
+            <i class="bi bi-envelope-fill"></i> 이메일 수동 발송
+        </button>
         <button class="btn btn-primary refresh-btn" onclick="refreshStatus()">
             <i class="bi bi-arrow-clockwise"></i> 새로고침
         </button>
@@ -222,16 +228,28 @@ function updateCrawlerStatus(data) {
     const badge = document.getElementById('crawler-status-badge');
     const content = document.getElementById('crawler-status-content');
     
-    if (data.status === 'success') {
+    // 상태값 정규화 (대소문자 무시)
+    const status = (data.status || '').toLowerCase();
+    
+    if (status === 'success' || status === 'no_news') {
         badge.className = 'status-indicator status-connected';
         badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> 정상';
-    } else if (data.status === 'never_run') {
+    } else if (status === 'never_run') {
         badge.className = 'status-indicator status-disconnected';
         badge.innerHTML = '<i class="bi bi-dash-circle-fill"></i> 미실행';
+    } else if (status === 'partial') {
+        badge.className = 'status-indicator status-running';
+        badge.innerHTML = '<i class="bi bi-exclamation-circle-fill"></i> 부분 성공';
     } else {
         badge.className = 'status-indicator status-disconnected';
         badge.innerHTML = '<i class="bi bi-x-circle-fill"></i> 오류';
     }
+    
+    // 상태 표시 텍스트 결정
+    let statusText = data.status;
+    if (status === 'success') statusText = '성공';
+    else if (status === 'no_news') statusText = '뉴스 없음';
+    else if (status === 'partial') statusText = '부분 성공';
     
     content.innerHTML = `
         <div class="status-info-row">
@@ -244,7 +262,7 @@ function updateCrawlerStatus(data) {
         </div>
         <div class="status-info-row">
             <span class="status-label">상태</span>
-            <span class="status-value">${data.status === 'success' ? '성공' : data.status}</span>
+            <span class="status-value">${statusText}</span>
         </div>
     `;
 }
@@ -320,6 +338,60 @@ function updateSchedulerStatus(data) {
             ${jobsHtml}
         </div>
     `;
+}
+
+// 크롤링 수동 실행
+function triggerCrawl() {
+    if (!confirm('크롤링 작업을 수동으로 실행하시겠습니까? 완료까지 몇 분이 소요될 수 있습니다.')) {
+        return;
+    }
+    
+    fetch('/admin/api/trigger/crawl', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(result.message);
+            setTimeout(refreshStatus, 2000);
+        } else {
+            alert('오류: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('크롤링 실행 중 오류가 발생했습니다.');
+    });
+}
+
+// 이메일 수동 발송
+function triggerEmail() {
+    if (!confirm('이메일 발송 작업을 수동으로 실행하시겠습니까?')) {
+        return;
+    }
+    
+    fetch('/admin/api/trigger/email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(result.message);
+            setTimeout(refreshStatus, 2000);
+        } else {
+            alert('오류: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('이메일 발송 중 오류가 발생했습니다.');
+    });
 }
 </script>
 {% endblock %}

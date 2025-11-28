@@ -221,7 +221,22 @@ class InvestingCrawler:
                 options.add_argument(f'--proxy-server={self.proxy}')
                 logger.info(f"Using proxy: {self.proxy}")
             
-            self.driver = webdriver.Chrome(options=options)
+            # Chromium/Chrome 경로 설정 (Docker 환경 지원)
+            import os
+            chrome_bin = os.environ.get('CHROME_BIN')
+            if chrome_bin:
+                options.binary_location = chrome_bin
+                logger.info(f"Using Chrome binary: {chrome_bin}")
+            
+            # ChromeDriver 경로 설정 (Docker 환경 지원)
+            chromedriver_path = os.environ.get('CHROMEDRIVER_PATH')
+            if chromedriver_path:
+                from selenium.webdriver.chrome.service import Service
+                service = Service(executable_path=chromedriver_path)
+                self.driver = webdriver.Chrome(service=service, options=options)
+            else:
+                self.driver = webdriver.Chrome(options=options)
+            
             self.driver.set_page_load_timeout(self.timeout)
             
             # JavaScript webdriver 플래그 제거
