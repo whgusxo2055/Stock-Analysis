@@ -138,10 +138,11 @@ def api_create_user():
         db.session.commit()
         
         # 기본 설정 생성
+        from datetime import time
         user_setting = UserSetting(
             user_id=new_user.id,
             language='ko',
-            notification_time='09:00',
+            notification_time=time(9, 0),
             is_notification_enabled=True
         )
         db.session.add(user_setting)

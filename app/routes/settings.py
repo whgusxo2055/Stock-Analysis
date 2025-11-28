@@ -5,7 +5,7 @@
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, time
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session
 
 from app.extensions import db
@@ -45,7 +45,7 @@ def settings_page():
         user_setting = UserSetting(
             user_id=current_user.id,
             language='ko',
-            notification_time='08:00',
+            notification_time=time(8, 0),  # Python time 객체로 변환
             is_notification_enabled=True
         )
         db.session.add(user_setting)
@@ -104,15 +104,16 @@ def update_settings():
         if language not in valid_languages:
             language = 'ko'
         
-        # 시간 형식 검증
+        # 시간 형식 검증 및 time 객체로 변환
         try:
-            datetime.strptime(notification_time, '%H:%M')
+            parsed_time = datetime.strptime(notification_time, '%H:%M')
+            notification_time_obj = time(parsed_time.hour, parsed_time.minute)
         except ValueError:
-            notification_time = '08:00'
+            notification_time_obj = time(8, 0)
         
         # 설정 업데이트
         user_setting.language = language
-        user_setting.notification_time = notification_time
+        user_setting.notification_time = notification_time_obj
         user_setting.is_notification_enabled = is_notification_enabled
         user_setting.updated_at = datetime.now()
         
@@ -223,7 +224,7 @@ def toggle_notification():
             user_setting = UserSetting(
                 user_id=current_user.id,
                 language='ko',
-                notification_time='08:00',
+                notification_time=time(8, 0),
                 is_notification_enabled=True
             )
             db.session.add(user_setting)
