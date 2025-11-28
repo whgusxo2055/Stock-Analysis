@@ -102,4 +102,21 @@ def create_app(config_name='development'):
         # 테이블 생성
         db.create_all()
     
+    # 스케줄러 초기화 (Gunicorn preload 또는 단일 프로세스에서만)
+    # 환경변수로 스케줄러 활성화 여부 결정
+    if os.environ.get('ENABLE_SCHEDULER', 'true').lower() == 'true':
+        # Gunicorn 워커가 아닌 경우에만 스케줄러 시작
+        # (Gunicorn은 --preload 옵션과 함께 사용하거나 별도 프로세스로 실행)
+        is_gunicorn = 'gunicorn' in os.environ.get('SERVER_SOFTWARE', '')
+        is_main_process = os.environ.get('SCHEDULER_MAIN', 'false').lower() == 'true'
+        
+        if not is_gunicorn or is_main_process:
+            try:
+                from app.services.scheduler import SchedulerService
+                scheduler_service = SchedulerService()
+                scheduler_service.init_app(app)
+                app.logger.info("✓ Scheduler initialized successfully")
+            except Exception as e:
+                app.logger.warning(f"Scheduler initialization skipped: {e}")
+    
     return app

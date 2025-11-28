@@ -28,5 +28,5 @@ ENV FLASK_APP=run.py
 # 포트 노출
 EXPOSE 5000
 
-# Gunicorn으로 실행
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
+# Gunicorn으로 실행 (스케줄러 중복 방지를 위해 preload 사용)
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "--timeout", "120", "--preload", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
