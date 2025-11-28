@@ -315,6 +315,7 @@ def api_trigger_crawl():
 def api_trigger_email():
     """
     수동 이메일 발송 트리거 API
+    모든 활성 사용자에게 즉시 발송
     """
     try:
         from app.services.scheduler import SchedulerService
@@ -329,20 +330,15 @@ def api_trigger_email():
         
         scheduler = SchedulerService()
         
-        # 별도 스레드에서 이메일 작업 실행 (Flask 앱 컨텍스트 포함)
-        def run_email():
-            with current_app.app_context():
-                scheduler._run_email_job()
+        # 즉시 발송 (시간 체크 없이)
+        result = scheduler.send_email_now()
         
-        thread = Thread(target=run_email)
-        thread.daemon = True
-        thread.start()
-        
-        logger.info(f"Email job triggered manually by admin {session.get('username')}")
-        return jsonify({
-            'success': True,
-            'message': '이메일 발송 작업이 시작되었습니다.'
-        })
+        if result.get('success'):
+            logger.info(f"Manual email sent by admin {session.get('username')}: {result.get('sent')} sent, {result.get('failed')} failed")
+            return jsonify(result)
+        else:
+            logger.error(f"Manual email send failed: {result.get('error')}")
+            return jsonify(result), 500
             
     except Exception as e:
         logger.error(f"Error triggering email: {e}")

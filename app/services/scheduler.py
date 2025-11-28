@@ -553,6 +553,114 @@ class SchedulerService:
             logger.error(f"Failed to resume job: {e}")
         return False
 
+    def send_email_now(self) -> Dict[str, Any]:
+        """
+        모든 활성 사용자에게 즉시 이메일 발송 (수동 트리거용)
+        시간 체크 없이 알림이 활성화된 모든 사용자에게 발송
+        
+        Returns:
+            발송 결과 딕셔너리
+        """
+        logger.info("Starting manual email send (all active users)...")
+        
+        if SchedulerService._app is None:
+            logger.error("Flask app not available")
+            return {'success': False, 'error': 'Flask app not available'}
+
+        sent_count = 0
+        failed_count = 0
+        
+        with SchedulerService._app.app_context():
+            try:
+                from app.services.email_sender import EmailSender
+                from app.services.news_storage import NewsStorageService
+                
+                email_sender = EmailSender()
+                storage = NewsStorageService()
+                
+                # 알림이 활성화된 모든 사용자 조회 (시간 무관)
+                users_to_notify = db.session.query(User, UserSetting).join(
+                    UserSetting,
+                    User.id == UserSetting.user_id
+                ).filter(
+                    User.is_active == True,
+                    UserSetting.is_notification_enabled == True
+                ).all()
+                
+                if not users_to_notify:
+                    logger.info("No active users with notifications enabled")
+                    return {
+                        'success': True,
+                        'message': '알림이 활성화된 사용자가 없습니다.',
+                        'sent': 0,
+                        'failed': 0
+                    }
+
+                logger.info(f"Found {len(users_to_notify)} users to notify")
+                
+                for user, setting in users_to_notify:
+                    try:
+                        # 사용자의 관심 종목 조회
+                        user_stocks = UserStock.query.filter_by(
+                            user_id=user.id
+                        ).all()
+                        
+                        if not user_stocks:
+                            logger.info(f"No stocks for user {user.username}")
+                            continue
+                        
+                        tickers = [stock.ticker_symbol for stock in user_stocks]
+                        
+                        # 최근 48시간 뉴스 조회
+                        news_by_stock = {}
+                        for ticker in tickers:
+                            news_list = storage.get_recent_news(ticker, hours=48)
+                            if news_list:
+                                news_by_stock[ticker] = news_list
+                        
+                        # 이메일 발송
+                        language = setting.language if setting else 'ko'
+                        
+                        if news_by_stock:
+                            success, error = email_sender.send_stock_report(
+                                user=user,
+                                news_by_stock=news_by_stock,
+                                language=language
+                            )
+                        else:
+                            success, error = email_sender.send_no_news_notification(
+                                user=user,
+                                language=language
+                            )
+                        
+                        if success:
+                            sent_count += 1
+                            logger.info(f"Email sent to {user.email}")
+                        else:
+                            failed_count += 1
+                            logger.warning(f"Failed to send email to {user.email}: {error}")
+
+                    except Exception as e:
+                        failed_count += 1
+                        logger.error(f"Error sending email to {user.username}: {e}")
+                        continue
+
+                logger.info(f"Manual email send completed: {sent_count} sent, {failed_count} failed")
+                
+                return {
+                    'success': True,
+                    'message': f'{sent_count}명에게 이메일을 발송했습니다.',
+                    'sent': sent_count,
+                    'failed': failed_count
+                }
+
+            except Exception as e:
+                logger.error(f"Manual email send failed: {e}")
+                return {
+                    'success': False,
+                    'error': str(e)
+                }
+
     def shutdown(self) -> None:
         """스케줄러 종료"""
         if SchedulerService._scheduler and SchedulerService._scheduler.running:
