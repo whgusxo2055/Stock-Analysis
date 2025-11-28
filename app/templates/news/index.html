@@ -150,13 +150,14 @@
             
             <!-- 페이지네이션 -->
             {% if total > per_page %}
+            {% set pagination_args = {'ticker': request.args.get('ticker', ''), 'query': request.args.get('query', ''), 'source': request.args.get('source', ''), 'date_from': request.args.get('date_from', ''), 'date_to': request.args.get('date_to', '')} %}
             <nav aria-label="Page navigation" class="mt-4">
                 <ul class="pagination justify-content-center">
                     {% set total_pages = (total // per_page) + (1 if total % per_page > 0 else 0) %}
                     
                     <!-- 이전 페이지 -->
                     <li class="page-item {% if page == 1 %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('news.news_page', page=page-1, ticker=request.args.get('ticker'), **request.args) }}">
+                        <a class="page-link" href="{{ url_for('news.news_page', page=page-1, **pagination_args) }}">
                             이전
                         </a>
                     </li>
@@ -165,7 +166,7 @@
                     {% for p in range(1, total_pages + 1) %}
                         {% if p == page or (p >= page - 2 and p <= page + 2) or p == 1 or p == total_pages %}
                         <li class="page-item {% if p == page %}active{% endif %}">
-                            <a class="page-link" href="{{ url_for('news.news_page', page=p, ticker=request.args.get('ticker'), **request.args) }}">
+                            <a class="page-link" href="{{ url_for('news.news_page', page=p, **pagination_args) }}">
                                 {{ p }}
                             </a>
                         </li>
@@ -178,7 +179,7 @@
                     
                     <!-- 다음 페이지 -->
                     <li class="page-item {% if page == total_pages %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('news.news_page', page=page+1, ticker=request.args.get('ticker'), **request.args) }}">
+                        <a class="page-link" href="{{ url_for('news.news_page', page=page+1, **pagination_args) }}">
                             다음
                         </a>
                     </li>
