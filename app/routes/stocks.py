@@ -147,10 +147,18 @@ def remove_stock(stock_id):
 @stocks_bp.route('/api/search', methods=['GET'])
 @login_required
 def search_stocks():
-    """종목 검색 API"""
-    query = request.args.get('q', '').strip().upper()
+    """종목 검색 API (FR-009-1 ~ FR-009-5)
     
-    if not query or len(query) < 1:
+    실시간 자동완성을 위한 종목 검색
+    - 티커 심볼과 회사명으로 검색 (대소문자 무시)
+    - 최대 20개 결과 반환
+    - 이미 관심종목인 항목 표시
+    """
+    query = request.args.get('q', '').strip()
+    user_id = session['user_id']
+    
+    # 2글자 미만이면 빈 결과 반환
+    if not query or len(query) < 2:
         return jsonify({'stocks': []})
     
     # 입력값 길이 제한
@@ -158,19 +166,35 @@ def search_stocks():
         return jsonify({'error': '검색어가 너무 깁니다.'}), 400
     
     try:
-        # 티커 심볼 또는 회사명으로 검색
+        # 티커 심볼 또는 회사명으로 검색 (대소문자 무시)
+        search_pattern = f'%{query}%'
         stocks = StockMaster.query.filter(
             db.or_(
-                StockMaster.ticker_symbol.like(f'%{query}%'),
-                StockMaster.company_name.like(f'%{query}%')
+                StockMaster.ticker_symbol.ilike(search_pattern),
+                StockMaster.company_name.ilike(search_pattern)
             )
+        ).order_by(
+            # 정확히 일치하는 티커를 우선 표시
+            db.case(
+                (StockMaster.ticker_symbol.ilike(query), 0),
+                (StockMaster.ticker_symbol.ilike(f'{query}%'), 1),
+                else_=2
+            ),
+            StockMaster.ticker_symbol
         ).limit(20).all()
         
+        # 현재 사용자의 관심종목 목록
+        user_watchlist = set([
+            us.ticker_symbol for us in 
+            UserStock.query.filter_by(user_id=user_id).all()
+        ])
+        
         results = [{
-            'ticker_symbol': s.ticker_symbol,
-            'company_name': s.company_name,
+            'ticker': s.ticker_symbol,
+            'name': s.company_name,
             'exchange': s.exchange,
-            'sector': s.sector
+            'sector': s.sector,
+            'is_watchlist': s.ticker_symbol in user_watchlist
         } for s in stocks]
         
         return jsonify({'stocks': results})

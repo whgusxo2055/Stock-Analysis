@@ -15,6 +15,6 @@ if __name__ == '__main__':
     # 개발 서버 실행 (운영에서는 Gunicorn 사용)
     app.run(
         host='0.0.0.0',
-        port=int(os.getenv('FLASK_PORT', 5000)),
+        port=int(os.getenv('FLASK_PORT', 5001)),
         debug=Config.DEBUG
     )
