@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+
+{% block title %}프로필 편집 - Stock Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+    .profile-card {
+        border: none;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        border-radius: 12px;
+    }
+    
+    .profile-card .card-header {
+        background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+        color: white;
+        border-radius: 12px 12px 0 0 !important;
+        padding: 20px 25px;
+    }
+    
+    .profile-card .card-body {
+        padding: 30px;
+    }
+    
+    .form-section {
+        padding: 25px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .form-section:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+    
+    .form-section h5 {
+        color: #333;
+        margin-bottom: 20px;
+        font-weight: 600;
+    }
+    
+    .form-section .description {
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 20px;
+    }
+    
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .info-row .label {
+        color: #666;
+        font-weight: 500;
+    }
+    
+    .info-row .value {
+        color: #333;
+        font-weight: 600;
+    }
+    
+    .btn-save {
+        background: linear-gradient(135deg, #34a853 0%, #2d9249 100%);
+        border: none;
+        padding: 12px 30px;
+        border-radius: 8px;
+        font-weight: 500;
+    }
+    
+    .btn-save:hover {
+        background: linear-gradient(135deg, #2d9249 0%, #247839 100%);
+    }
+    
+    .btn-cancel {
+        padding: 12px 30px;
+        border-radius: 8px;
+    }
+    
+    .alert-result {
+        margin-top: 20px;
+    }
+    
+    .password-toggle {
+        cursor: pointer;
+        color: #666;
+    }
+    
+    .password-toggle:hover {
+        color: #1a73e8;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('settings.settings_page') }}">설정</a></li>
+                    <li class="breadcrumb-item active">프로필 편집</li>
+                </ol>
+            </nav>
+            <h2>
+                <i class="bi bi-person-gear text-primary"></i> 프로필 편집
+            </h2>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <!-- 계정 정보 (읽기 전용) -->
+        <div class="col-lg-4">
+            <div class="card profile-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-circle"></i> 계정 정보
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="info-row">
+                        <span class="label">사용자명</span>
+                        <span class="value">{{ user.username }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">현재 이메일</span>
+                        <span class="value">{{ user.email }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">가입일</span>
+                        <span class="value">{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '-' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">계정 유형</span>
+                        <span class="value">
+                            {% if user.is_admin %}
+                            <span class="badge bg-primary">관리자</span>
+                            {% else %}
+                            <span class="badge bg-secondary">일반 사용자</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 프로필 수정 폼 -->
+        <div class="col-lg-8">
+            <div class="card profile-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-pencil-square"></i> 정보 수정
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- 결과 메시지 -->
+                    <div id="resultAlert" class="alert alert-result" style="display: none;"></div>
+                    
+                    <!-- 이메일 변경 섹션 -->
+                    <div class="form-section">
+                        <h5><i class="bi bi-envelope"></i> 이메일 변경</h5>
+                        <p class="description">
+                            이메일 주소를 변경하면 뉴스 보고서가 새 이메일로 발송됩니다.
+                        </p>
+                        <form id="emailForm">
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label for="newEmail" class="form-label">새 이메일 주소</label>
+                                    <input type="email" class="form-control" id="newEmail" 
+                                           name="email" placeholder="new@example.com"
+                                           value="{{ user.email }}">
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="bi bi-check-lg"></i> 이메일 변경
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- 비밀번호 변경 섹션 -->
+                    <div class="form-section">
+                        <h5><i class="bi bi-key"></i> 비밀번호 변경</h5>
+                        <p class="description">
+                            보안을 위해 현재 비밀번호를 입력해야 새 비밀번호로 변경할 수 있습니다.
+                        </p>
+                        <form id="passwordForm">
+                            <div class="row g-3">
+                                <div class="col-md-12">
+                                    <label for="currentPassword" class="form-label">현재 비밀번호</label>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="currentPassword" 
+                                               name="current_password" placeholder="현재 비밀번호 입력">
+                                        <span class="input-group-text password-toggle" onclick="togglePassword('currentPassword', this)">
+                                            <i class="bi bi-eye"></i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="newPassword" class="form-label">새 비밀번호</label>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="newPassword" 
+                                               name="new_password" placeholder="새 비밀번호 (6자 이상)">
+                                        <span class="input-group-text password-toggle" onclick="togglePassword('newPassword', this)">
+                                            <i class="bi bi-eye"></i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="confirmPassword" class="form-label">새 비밀번호 확인</label>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="confirmPassword" 
+                                               name="confirm_password" placeholder="새 비밀번호 다시 입력">
+                                        <span class="input-group-text password-toggle" onclick="togglePassword('confirmPassword', this)">
+                                            <i class="bi bi-eye"></i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-warning">
+                                        <i class="bi bi-shield-lock"></i> 비밀번호 변경
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- 하단 버튼 -->
+                    <div class="mt-4 text-end">
+                        <a href="{{ url_for('settings.settings_page') }}" class="btn btn-outline-secondary btn-cancel">
+                            <i class="bi bi-arrow-left"></i> 설정으로 돌아가기
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 비밀번호 표시/숨기기 토글
+function togglePassword(inputId, toggleElement) {
+    const input = document.getElementById(inputId);
+    const icon = toggleElement.querySelector('i');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'bi bi-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'bi bi-eye';
+    }
+}
+
+// 결과 메시지 표시
+function showResult(success, message) {
+    const alertDiv = document.getElementById('resultAlert');
+    alertDiv.className = `alert alert-result alert-${success ? 'success' : 'danger'}`;
+    alertDiv.innerHTML = `
+        <i class="bi bi-${success ? 'check-circle' : 'exclamation-circle'}"></i>
+        ${message}
+    `;
+    alertDiv.style.display = 'block';
+    
+    // 5초 후 자동 숨기기
+    setTimeout(() => {
+        alertDiv.style.display = 'none';
+    }, 5000);
+    
+    // 상단으로 스크롤
+    alertDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// 이메일 변경 폼
+document.getElementById('emailForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('newEmail').value.trim();
+    const currentEmail = '{{ user.email }}';
+    
+    if (!email) {
+        showResult(false, '이메일을 입력해주세요.');
+        return;
+    }
+    
+    if (email === currentEmail) {
+        showResult(false, '현재 이메일과 동일합니다. 새 이메일을 입력해주세요.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('{{ url_for("settings.update_profile") }}', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email: email })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showResult(true, data.message);
+            // 페이지 새로고침하여 업데이트된 정보 표시
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showResult(false, data.error);
+        }
+    } catch (error) {
+        showResult(false, '요청 중 오류가 발생했습니다.');
+    }
+});
+
+// 비밀번호 변경 폼
+document.getElementById('passwordForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    if (!currentPassword) {
+        showResult(false, '현재 비밀번호를 입력해주세요.');
+        return;
+    }
+    
+    if (!newPassword) {
+        showResult(false, '새 비밀번호를 입력해주세요.');
+        return;
+    }
+    
+    if (newPassword.length < 6) {
+        showResult(false, '새 비밀번호는 6자 이상이어야 합니다.');
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        showResult(false, '새 비밀번호와 확인 비밀번호가 일치하지 않습니다.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('{{ url_for("settings.update_profile") }}', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword,
+                confirm_password: confirmPassword
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showResult(true, data.message);
+            // 폼 초기화
+            document.getElementById('passwordForm').reset();
+        } else {
+            showResult(false, data.error);
+        }
+    } catch (error) {
+        showResult(false, '요청 중 오류가 발생했습니다.');
+    }
+});
+</script>
+{% endblock %}

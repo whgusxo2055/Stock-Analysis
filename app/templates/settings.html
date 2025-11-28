@@ -232,6 +232,13 @@
                         <span class="status-badge status-disabled">비활성화</span>
                         {% endif %}
                     </div>
+                    
+                    <!-- 프로필 편집 버튼 추가 -->
+                    <div class="mt-3 pt-3 border-top">
+                        <a href="{{ url_for('settings.profile_page') }}" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-pencil-square"></i> 프로필 편집
+                        </a>
+                    </div>
                 </div>
             </div>
             

@@ -53,8 +53,7 @@ def settings_page():
     
     # 사용자의 관심 종목 수
     stock_count = UserStock.query.filter_by(
-        user_id=current_user.id,
-        is_active=True
+        user_id=current_user.id
     ).count()
     
     # 시간 옵션 생성 (00:00 ~ 23:00)
@@ -250,3 +249,163 @@ def toggle_notification():
             'success': False,
             'message': str(e)
         }), 500
+
+
+# ============================================================
+# 프로필 관리 API (SRS FR-005, FR-055, FR-056)
+# ============================================================
+
+@settings_bp.route('/api/user/profile', methods=['GET'])
+@login_required
+def get_profile():
+    """
+    프로필 조회 API
+    S9.3-001: GET /api/user/profile
+    """
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        return jsonify({
+            'success': True,
+            'profile': {
+                'id': current_user.id,
+                'username': current_user.username,
+                'email': current_user.email,
+                'is_admin': current_user.is_admin,
+                'created_at': current_user.created_at.isoformat() if current_user.created_at else None,
+                'updated_at': current_user.updated_at.isoformat() if current_user.updated_at else None
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error getting profile: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/api/user/profile', methods=['PUT'])
+@login_required
+def update_profile():
+    """
+    프로필 수정 API
+    S9.3-002: PUT /api/user/profile - 이메일/비밀번호 변경
+    FR-005: 사용자 정보 수정
+    FR-055: 비밀번호 변경
+    FR-056: 이메일 변경
+    """
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '요청 데이터가 없습니다.'}), 400
+        
+        updated_fields = []
+        
+        # 비밀번호 변경
+        if data.get('new_password'):
+            # 현재 비밀번호 확인 필수
+            current_password = data.get('current_password')
+            if not current_password:
+                return jsonify({
+                    'success': False,
+                    'error': '현재 비밀번호를 입력해주세요.'
+                }), 400
+            
+            # S9.3-003: 비밀번호 변경 검증
+            if not current_user.check_password(current_password):
+                return jsonify({
+                    'success': False,
+                    'error': '현재 비밀번호가 일치하지 않습니다.'
+                }), 400
+            
+            # 새 비밀번호 유효성 검사
+            new_password = data.get('new_password')
+            if len(new_password) < 6:
+                return jsonify({
+                    'success': False,
+                    'error': '새 비밀번호는 6자 이상이어야 합니다.'
+                }), 400
+            
+            # 비밀번호 확인
+            confirm_password = data.get('confirm_password')
+            if new_password != confirm_password:
+                return jsonify({
+                    'success': False,
+                    'error': '새 비밀번호와 확인 비밀번호가 일치하지 않습니다.'
+                }), 400
+            
+            current_user.set_password(new_password)
+            updated_fields.append('비밀번호')
+            logger.info(f"Password updated for user {current_user.username}")
+        
+        # 이메일 변경
+        new_email = data.get('email')
+        if new_email and new_email != current_user.email:
+            # 이메일 형식 검증 (간단한 정규식)
+            import re
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_pattern, new_email):
+                return jsonify({
+                    'success': False,
+                    'error': '유효하지 않은 이메일 형식입니다.'
+                }), 400
+            
+            # 중복 이메일 확인
+            existing_user = User.query.filter_by(email=new_email).first()
+            if existing_user:
+                return jsonify({
+                    'success': False,
+                    'error': '이미 사용 중인 이메일입니다.'
+                }), 400
+            
+            current_user.email = new_email
+            updated_fields.append('이메일')
+            logger.info(f"Email updated for user {current_user.username}: {new_email}")
+        
+        if not updated_fields:
+            return jsonify({
+                'success': False,
+                'error': '변경할 내용이 없습니다.'
+            }), 400
+        
+        current_user.updated_at = datetime.now()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{", ".join(updated_fields)}이(가) 변경되었습니다.',
+            'profile': {
+                'id': current_user.id,
+                'username': current_user.username,
+                'email': current_user.email,
+                'updated_at': current_user.updated_at.isoformat() if current_user.updated_at else None
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating profile: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'프로필 수정 중 오류가 발생했습니다: {str(e)}'
+        }), 500
+
+
+@settings_bp.route('/profile')
+@login_required
+def profile_page():
+    """
+    프로필 편집 페이지
+    S9.3-004: /settings/profile 라우트
+    """
+    current_user = get_current_user()
+    if not current_user:
+        return redirect(url_for('auth.login'))
+    
+    return render_template(
+        'settings/profile.html',
+        user=current_user
+    )
