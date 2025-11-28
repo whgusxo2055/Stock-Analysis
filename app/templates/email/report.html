@@ -163,10 +163,22 @@
         
         .news-meta {
             display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .news-meta-top {
+            display: flex;
             align-items: center;
             justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
+        }
+        
+        .news-meta-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 10px;
+            border-top: 1px solid #f0f0f0;
         }
         
         /* 감성 배지 - SRS FR-034 색상 */
@@ -200,19 +212,34 @@
         }
         
         .news-date {
-            font-size: 12px;
-            color: #999;
+            font-size: 13px;
+            color: #6c757d;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .news-date::before {
+            content: '📅';
         }
         
         .news-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             font-size: 13px;
-            color: #1a73e8;
+            color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 8px 16px;
+            border-radius: 20px;
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 600;
+            transition: all 0.2s;
         }
         
         .news-link:hover {
-            text-decoration: underline;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            transform: translateY(-1px);
         }
         
         /* 빈 상태 */
@@ -315,9 +342,16 @@
                 font-size: 15px;
             }
             
-            .news-meta {
+            .news-meta-top,
+            .news-meta-bottom {
                 flex-direction: column;
                 align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .news-link {
+                width: 100%;
+                justify-content: center;
             }
         }
     </style>
@@ -382,29 +416,33 @@
                             {% set classification = (sentiment.get('classification', 'neutral'))|lower %}
                             {% set score = sentiment.get('score', 0)|int %}
                             
-                            {% if classification == 'positive' %}
-                            <span class="sentiment-badge sentiment-positive">
-                                📈 호재 ({{ '+' if score > 0 else '' }}{{ score }}점)
-                            </span>
-                            {% elif classification == 'negative' %}
-                            <span class="sentiment-badge sentiment-negative">
-                                📉 악재 ({{ score }}점)
-                            </span>
-                            {% else %}
-                            <span class="sentiment-badge sentiment-neutral">
-                                ➡️ 중립 ({{ score }}점)
-                            </span>
-                            {% endif %}
+                            <div class="news-meta-top">
+                                {% if classification == 'positive' %}
+                                <span class="sentiment-badge sentiment-positive">
+                                    📈 호재 ({{ '+' if score > 0 else '' }}{{ score }}점)
+                                </span>
+                                {% elif classification == 'negative' %}
+                                <span class="sentiment-badge sentiment-negative">
+                                    📉 악재 ({{ score }}점)
+                                </span>
+                                {% else %}
+                                <span class="sentiment-badge sentiment-neutral">
+                                    ➡️ 중립 ({{ score }}점)
+                                </span>
+                                {% endif %}
+                            </div>
                             
-                            <span class="news-date">
-                                {{ news.published_date[:10] if news.published_date else news.date[:10] if news.date else '' }}
-                            </span>
-                            
-                            {% if news.source_url or news.url %}
-                            <a href="{{ news.source_url or news.url }}" class="news-link" target="_blank">
-                                원문 보기 →
-                            </a>
-                            {% endif %}
+                            <div class="news-meta-bottom">
+                                <span class="news-date">
+                                    {{ news.published_date[:10] if news.published_date else news.date[:10] if news.date else '' }}
+                                </span>
+                                
+                                {% if news.source_url or news.url %}
+                                <a href="{{ news.source_url or news.url }}" class="news-link" target="_blank">
+                                    🔗 원문 보기
+                                </a>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
