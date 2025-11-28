@@ -48,12 +48,22 @@
                     <p class="text-muted">
                         <i class="bi bi-calendar"></i> 
                         {{ news.published_date if news.published_date else 'N/A' }}
+                        {% if news.source_url or news.url %}
+                        <a href="{{ news.source_url or news.url }}" target="_blank" class="btn btn-sm btn-outline-primary ms-3">
+                            <i class="bi bi-box-arrow-up-right"></i> 원문 보기
+                        </a>
+                        {% endif %}
                     </p>
                     
                     <!-- 기사 원문 내용 -->
                     <div class="card mb-4">
-                        <div class="card-header">
+                        <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="mb-0"><i class="bi bi-newspaper"></i> 기사 원문</h5>
+                            {% if news.source_url or news.url %}
+                            <a href="{{ news.source_url or news.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-box-arrow-up-right"></i> 외부 링크
+                            </a>
+                            {% endif %}
                         </div>
                         <div class="card-body">
                             <p class="card-text" style="white-space: pre-line;">{{ news.content or '기사 내용이 없습니다.' }}</p>
@@ -163,7 +173,7 @@
                                 <div class="col-md-4">
                                     <h6>분석 시각</h6>
                                     <p class="text-muted">
-                                        {{ news.analyzed_at.strftime('%Y-%m-%d %H:%M') if news.analyzed_at else 'N/A' }}
+                                        {{ news.analyzed_at[:16].replace('T', ' ') if news.analyzed_at else 'N/A' }}
                                     </p>
                                 </div>
                             </div>
@@ -183,7 +193,7 @@
                                     <p><strong>소스:</strong> {{ news.source or 'N/A' }}</p>
                                 </div>
                                 <div class="col-md-6">
-                                    <p><strong>수집일:</strong> {{ news.collected_at.strftime('%Y-%m-%d %H:%M') if news.collected_at else 'N/A' }}</p>
+                                    <p><strong>수집일:</strong> {{ news.collected_at[:16].replace('T', ' ') if news.collected_at else 'N/A' }}</p>
                                     <p><strong>관련 종목:</strong> {{ news.ticker_symbols|join(', ') }}</p>
                                 </div>
                             </div>

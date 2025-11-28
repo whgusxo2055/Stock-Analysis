@@ -455,7 +455,12 @@ class NewsStorageAdapter:
                 }
             }
             
-            response = self.es.search(index=self.news_index, body=query)
+            response = self.es.client.search(
+                index=self.news_index,
+                query=query['query'],
+                aggs=query['aggs'],
+                size=0
+            )
             
             total = response['hits']['total']['value']
             if total == 0:
@@ -516,7 +521,12 @@ class NewsStorageAdapter:
                 }
             }
             
-            response = self.es.search(index=self.news_index, body=query)
+            response = self.es.client.search(
+                index=self.news_index,
+                query=query['query'],
+                aggs=query['aggs'],
+                size=0
+            )
             
             buckets = response['aggregations']['by_date']['buckets']
             

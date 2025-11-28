@@ -120,7 +120,7 @@
                             </h5>
                             
                             <p class="card-text text-muted small mb-2">
-                                {{ news.published_at.strftime('%Y-%m-%d %H:%M') if news.published_at else 'N/A' }}
+                                {{ news.published_at[:16].replace('T', ' ') if news.published_at else 'N/A' }}
                             </p>
                             
                             <p class="card-text">
@@ -129,9 +129,15 @@
                             </p>
                             
                             <div class="d-flex justify-content-between align-items-center mt-2">
+                                {% if news.url %}
                                 <a href="{{ news.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-box-arrow-up-right"></i> 원문 보기
                                 </a>
+                                {% else %}
+                                <span class="btn btn-sm btn-outline-secondary disabled">
+                                    <i class="bi bi-x-circle"></i> 원문 없음
+                                </span>
+                                {% endif %}
                                 <a href="/news/{{ news.news_id }}" class="btn btn-sm btn-primary">
                                     상세 보기
                                 </a>

@@ -78,8 +78,38 @@ def news_page():
             
             # search_news가 Dict를 반환 (total, hits 키 포함)
             if isinstance(result, dict):
-                news_list = result.get('hits', [])
+                raw_hits = result.get('hits', [])
                 total = result.get('total', 0)
+                
+                # 템플릿 필드명 매핑
+                for news in raw_hits:
+                    # URL 필드 통일 (source_url -> url)
+                    news['url'] = news.get('source_url') or news.get('url', '')
+                    
+                    # 다국어 요약 필드 펼치기
+                    summary = news.get('summary', {})
+                    if isinstance(summary, dict):
+                        news['summary_ko'] = summary.get('ko', '')
+                        news['summary_en'] = summary.get('en', '')
+                        news['summary_ja'] = summary.get('ja', '')
+                        news['summary_es'] = summary.get('es', '')
+                    
+                    # 감성 분석 필드 펼치기
+                    sentiment_data = news.get('sentiment', {})
+                    if isinstance(sentiment_data, dict):
+                        classification = sentiment_data.get('classification', 'neutral')
+                        news['sentiment_label'] = classification.lower() if classification else 'neutral'
+                        news['sentiment_score'] = sentiment_data.get('score', 0)
+                    
+                    # 티커 심볼 배열로 변환
+                    ticker = news.get('ticker_symbol', '')
+                    news['ticker_symbols'] = [ticker] if ticker else []
+                    
+                    # 발행일 필드 통일
+                    if 'published_at' not in news:
+                        news['published_at'] = news.get('published_date')
+                
+                news_list = raw_hits
             else:
                 news_list = []
                 total = 0
@@ -264,6 +294,13 @@ def detail(news_id):
         # 티커 심볼 배열로 변환
         ticker = news_data.get('ticker_symbol', '')
         news_data['ticker_symbols'] = [ticker] if ticker else []
+        
+        # 소스 필드 매핑 (source_name -> source)
+        news_data['source'] = news_data.get('source_name') or news_data.get('source', 'N/A')
+        
+        # 수집일 필드 매핑 (crawled_date -> collected_at)
+        crawled_date = news_data.get('crawled_date') or news_data.get('collected_at')
+        news_data['collected_at'] = crawled_date
         
         return render_template('news/detail.html', news=news_data)
         
