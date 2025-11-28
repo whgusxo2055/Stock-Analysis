@@ -175,11 +175,11 @@ class EmailSender:
             for news_list in news_by_stock.values():
                 for news in news_list:
                     sentiment = news.get('sentiment', {})
-                    classification = sentiment.get('classification', 'Neutral')
+                    classification = sentiment.get('classification', 'neutral').lower()
                     
-                    if classification == 'Positive':
+                    if classification == 'positive':
                         positive_count += 1
-                    elif classification == 'Negative':
+                    elif classification == 'negative':
                         negative_count += 1
                     else:
                         neutral_count += 1
