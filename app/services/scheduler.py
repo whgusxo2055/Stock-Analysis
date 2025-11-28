@@ -112,15 +112,15 @@ class SchedulerService:
         )
         logger.info("Registered email_job: every 1 hour")
 
-        # 3. 데이터 정리 - 매일 새벽 3시 (FR-028)
+        # 3. 데이터 정리 - 매일 새벽 2시 (SRS 9.3)
         SchedulerService._scheduler.add_job(
             func=self._run_cleanup_job,
-            trigger=CronTrigger(hour=3, minute=0),
+            trigger=CronTrigger(hour=2, minute=0),
             id='cleanup_job',
             name='Data Cleanup Job',
             replace_existing=True
         )
-        logger.info("Registered cleanup_job: daily at 03:00")
+        logger.info("Registered cleanup_job: daily at 02:00")
 
     def _run_crawl_job(self) -> None:
         """
@@ -136,17 +136,20 @@ class SchedulerService:
         with SchedulerService._app.app_context():
             try:
                 from app.services.crawler_service import CrawlerService
-                from app.services.news_analyzer import NewsAnalyzer
-                from app.services.news_storage import NewsStorageService
+                from app.services.news_storage import NewsStorageAdapter
                 
-                # 크롤러 및 분석기 초기화
-                crawler = CrawlerService()
-                analyzer = NewsAnalyzer()
-                storage = NewsStorageService()
+                # 서비스 초기화
+                storage = NewsStorageAdapter()
+                crawler = CrawlerService(
+                    db_session=db.session,
+                    news_storage=storage
+                )
                 
-                # 모든 활성 종목 조회
-                active_stocks = UserStock.query.filter_by(is_active=True).all()
-                tickers = list(set([stock.ticker for stock in active_stocks]))
+                # 모든 관심 종목 조회 (활성 사용자의 종목만)
+                active_users = User.query.filter_by(is_active=True).all()
+                user_ids = [u.id for u in active_users]
+                active_stocks = UserStock.query.filter(UserStock.user_id.in_(user_ids)).all()
+                tickers = list(set([stock.ticker_symbol for stock in active_stocks]))
                 
                 if not tickers:
                     logger.info("No active stocks to crawl")
@@ -157,18 +160,15 @@ class SchedulerService:
                 total_news = 0
                 for ticker in tickers:
                     try:
-                        # 뉴스 크롤링
-                        news_list = crawler.crawl_news(ticker)
+                        # 뉴스 크롤링 (crawl_ticker 사용)
+                        result = crawler.crawl_ticker(ticker)
                         
-                        if news_list:
-                            # AI 분석
-                            analyzed_news = analyzer.analyze_batch(news_list)
-                            
-                            # ES에 저장
-                            stored_count = storage.store_news_batch(analyzed_news)
-                            total_news += stored_count
-                            
-                            logger.info(f"Crawled {len(news_list)} news for {ticker}, stored {stored_count}")
+                        if result.get('status') in ['SUCCESS', 'PARTIAL']:
+                            count = result.get('count', 0)
+                            total_news += count
+                            logger.info(f"Crawled {count} news for {ticker}")
+                        else:
+                            logger.warning(f"Crawl failed for {ticker}: {result.get('error')}")
                         
                     except Exception as e:
                         logger.error(f"Error crawling {ticker}: {e}")
@@ -176,10 +176,9 @@ class SchedulerService:
 
                 # 크롤링 로그 기록
                 crawl_log = CrawlLog(
-                    ticker=','.join(tickers),
+                    ticker_symbol=','.join(tickers),
                     status='success' if total_news > 0 else 'no_news',
-                    news_count=total_news,
-                    source='investing.com'
+                    news_count=total_news
                 )
                 db.session.add(crawl_log)
                 db.session.commit()
@@ -191,11 +190,10 @@ class SchedulerService:
                 # 에러 로그 기록
                 try:
                     crawl_log = CrawlLog(
-                        ticker='ALL',
+                        ticker_symbol='ALL',
                         status='error',
                         news_count=0,
-                        error_message=str(e)[:500],
-                        source='investing.com'
+                        error_message=str(e)[:500]
                     )
                     db.session.add(crawl_log)
                     db.session.commit()
@@ -240,15 +238,14 @@ class SchedulerService:
                     try:
                         # 사용자의 관심 종목 조회
                         user_stocks = UserStock.query.filter_by(
-                            user_id=user.id,
-                            is_active=True
+                            user_id=user.id
                         ).all()
                         
                         if not user_stocks:
-                            logger.info(f"No active stocks for user {user.username}")
+                            logger.info(f"No stocks for user {user.username}")
                             continue
                         
-                        tickers = [stock.ticker for stock in user_stocks]
+                        tickers = [stock.ticker_symbol for stock in user_stocks]
                         
                         # 최근 3시간 뉴스 조회 (FR-035)
                         news_by_stock = {}
@@ -338,11 +335,11 @@ class SchedulerService:
                 deleted_count = storage.delete_old_news(cutoff_date)
                 logger.info(f"Deleted {deleted_count} old news items")
                 
-                # 오래된 이메일 로그 삭제 (6개월)
-                self._cleanup_old_logs(days=180)
+                # 오래된 이메일 로그 삭제 (SRS: 1년 이상)
+                self._cleanup_old_logs(days=365)
                 
-                # 오래된 크롤링 로그 삭제 (3개월)
-                self._cleanup_crawl_logs(days=90)
+                # 오래된 크롤링 로그 삭제 (SRS: 1년 이상)
+                self._cleanup_crawl_logs(days=365)
                 
                 logger.info("Cleanup job completed")
 
@@ -452,11 +449,10 @@ class SchedulerService:
 
                 for user, setting in users_to_notify:
                     user_stocks = UserStock.query.filter_by(
-                        user_id=user.id,
-                        is_active=True
+                        user_id=user.id
                     ).all()
                     
-                    tickers = [stock.ticker for stock in user_stocks]
+                    tickers = [stock.ticker_symbol for stock in user_stocks]
                     language = setting.language if setting else 'ko'
                     
                     news_by_stock = {}
