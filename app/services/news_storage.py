@@ -606,7 +606,9 @@ class NewsStorageAdapter:
             List[Dict]: 뉴스 리스트
         """
         try:
-            from_date = (datetime.now() - timedelta(hours=hours)).isoformat()
+            from datetime import timezone
+            # UTC 기준으로 시간 계산 (ES에 저장된 published_date가 UTC임)
+            from_date = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
             
             query = {
                 "bool": {

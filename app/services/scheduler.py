@@ -248,10 +248,11 @@ class SchedulerService:
                         
                         tickers = [stock.ticker_symbol for stock in user_stocks]
                         
-                        # 최근 3시간 뉴스 조회 (FR-035)
+                        # 마지막 보고서 발송 이후의 뉴스 조회 (24시간, UTC 기준)
+                        # 크롤링 주기가 3시간이지만, 뉴스 발행 시점이 다를 수 있음
                         news_by_stock = {}
                         for ticker in tickers:
-                            news_list = storage.get_recent_news(ticker, hours=3)
+                            news_list = storage.get_recent_news(ticker, hours=48)
                             if news_list:
                                 news_by_stock[ticker] = news_list
                         

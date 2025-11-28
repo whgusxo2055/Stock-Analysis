@@ -49,8 +49,10 @@ def dashboard():
     }
     
     try:
-        # 최근 24시간 뉴스
-        from_date = datetime.now() - timedelta(days=1)
+        # 최근 7일 뉴스 (뉴스가 충분히 표시되도록)
+        # UTC 기준으로 계산 (ES에 저장된 published_date가 UTC임)
+        from datetime import timezone
+        from_date = datetime.now(timezone.utc) - timedelta(days=7)
         
         for user_stock, stock_info in user_stocks:
             ticker = user_stock.ticker_symbol
@@ -68,7 +70,10 @@ def dashboard():
             for item in news_items:
                 stats['total'] += 1
                 sentiment_data = item.get('sentiment', {})
-                sentiment_label = sentiment_data.get('label', 'neutral').lower()
+                # ES 저장 필드는 'classification' (positive/negative/neutral)
+                sentiment_label = sentiment_data.get('classification', sentiment_data.get('label', 'neutral'))
+                if sentiment_label:
+                    sentiment_label = sentiment_label.lower()
                 
                 if sentiment_label in ['positive', 'negative', 'neutral']:
                     stats[sentiment_label] = stats.get(sentiment_label, 0) + 1
