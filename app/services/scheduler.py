@@ -215,21 +215,22 @@ class SchedulerService:
             try:
                 from app.services.email_sender import EmailSender
                 from app.services.news_storage import NewsStorageService
+                from datetime import time as dt_time
                 
                 email_sender = EmailSender()
                 storage = NewsStorageService()
                 
                 # 현재 시간 확인 (한국 시간)
                 now = datetime.now()
-                current_hour = now.strftime('%H:00')
+                current_time = dt_time(now.hour, 0)  # time 객체로 변환 (분은 0)
                 
-                logger.info(f"Checking users for notification time: {current_hour}")
+                logger.info(f"Checking users for notification time: {current_time.strftime('%H:%M')}")
                 
                 # 해당 시간에 알림 설정된 사용자 조회
-                users_to_notify = self._get_users_to_notify(current_hour)
+                users_to_notify = self._get_users_to_notify(current_time)
                 
                 if not users_to_notify:
-                    logger.info(f"No users to notify at {current_hour}")
+                    logger.info(f"No users to notify at {current_time.strftime('%H:%M')}")
                     return
 
                 logger.info(f"Found {len(users_to_notify)} users to notify")
@@ -284,25 +285,35 @@ class SchedulerService:
             except Exception as e:
                 logger.error(f"Email job failed: {e}")
 
-    def _get_users_to_notify(self, current_hour: str) -> List[tuple]:
+    def _get_users_to_notify(self, current_time) -> List[tuple]:
         """
         알림 받을 사용자 목록 조회
         
         Args:
-            current_hour: 현재 시각 (HH:00 형식)
+            current_time: 현재 시각 (time 객체)
             
         Returns:
             [(User, UserSetting), ...]
         """
         try:
+            from datetime import time as dt_time
+            
+            # time 객체로 변환 (문자열이 들어올 경우 대비)
+            if isinstance(current_time, str):
+                # "HH:00" 형식의 문자열 처리
+                hour = int(current_time.split(':')[0])
+                current_time = dt_time(hour, 0)
+            
             # 알림 활성화 + 해당 시각 설정 사용자 조회
             results = db.session.query(User, UserSetting).join(
                 UserSetting,
                 User.id == UserSetting.user_id
             ).filter(
                 UserSetting.is_notification_enabled == True,
-                UserSetting.notification_time == current_hour
+                UserSetting.notification_time == current_time
             ).all()
+            
+            logger.info(f"Query for notification_time={current_time}, found {len(results)} users")
             
             return results
             
