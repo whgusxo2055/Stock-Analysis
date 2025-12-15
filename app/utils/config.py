@@ -40,7 +40,7 @@ class Config:
     # 크롤러 설정
     CRAWLER_TYPE = os.getenv('CRAWLER_TYPE', 'selenium')
     HEADLESS = os.getenv('HEADLESS', 'true').lower() == 'true'
-    CRAWL_TIMEOUT = int(os.getenv('CRAWL_TIMEOUT', '30'))
+    CRAWL_TIMEOUT = int(os.getenv('CRAWL_TIMEOUT', '45'))
     USER_AGENT = os.getenv('USER_AGENT', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
     
     # 스케줄러 설정

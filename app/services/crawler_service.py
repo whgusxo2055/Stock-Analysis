@@ -195,10 +195,14 @@ class CrawlerService:
         
         # URL 중복 체크
         unique_items = []
-        urls = [item['url'] for item in news_items if item.get('url')]
+        urls = []
+        for item in news_items:
+            src = item.get('source_url') or item.get('url')
+            if src:
+                urls.append(src)
         
         if urls:
-            existing_urls = self.storage.check_duplicates(urls)
+            existing_urls = self.storage.check_duplicates(urls, ticker)
             logger.debug(
                 f"Found {len(existing_urls)} existing URLs out of {len(urls)}"
             )
@@ -207,10 +211,12 @@ class CrawlerService:
         
         # 중복 제거
         for item in news_items:
-            url = item.get('url')
+            url = item.get('source_url') or item.get('url')
             if url and url not in existing_urls:
                 # ticker와 company_name 추가
                 item['ticker'] = ticker
+                # ES 호환을 위해 url 필드도 채워둠
+                item.setdefault('url', url)
                 if company_name:
                     item['company_name'] = company_name
                 unique_items.append(item)

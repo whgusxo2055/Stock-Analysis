@@ -344,12 +344,13 @@ class NewsStorageAdapter:
         )
         return result['hits']
 
-    def check_duplicates(self, urls: List[str]) -> set:
+    def check_duplicates(self, urls: List[str], ticker_symbol: Optional[str] = None) -> set:
         """
         URL 목록에서 중복된 뉴스 URL 확인
         
         Args:
             urls (List[str]): 확인할 URL 리스트
+            ticker_symbol (str, optional): 종목 코드. 지정하면 해당 종목 내에서만 중복을 확인.
         
         Returns:
             set: 이미 저장된 URL 집합
@@ -359,14 +360,15 @@ class NewsStorageAdapter:
         
         try:
             # source_url 필드로 검색 (SRS v1.1)
-            query = {
-                "bool": {
-                    "should": [
-                        {"term": {"source_url": url}} for url in urls
-                    ],
-                    "minimum_should_match": 1
-                }
+            should_clause = [{"term": {"source_url": url}} for url in urls]
+            query_bool = {
+                "should": should_clause,
+                "minimum_should_match": 1
             }
+            if ticker_symbol:
+                query_bool["must"] = [{"term": {"ticker_symbol": ticker_symbol}}]
+
+            query = {"bool": query_bool}
             
             response = self.es_client.client.search(
                 index=self.es_client.index_name,
@@ -735,4 +737,3 @@ class NewsStorageService:
     def get_date_statistics(self, tickers: List[str], from_date: str) -> List[Dict]:
         """일별 통계 조회 (Sprint 9.2)"""
         return self._get_adapter().get_date_statistics(tickers, from_date)
-

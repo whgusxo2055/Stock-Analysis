@@ -140,6 +140,8 @@ TICKER_TO_INVESTING_SLUG = {
 TICKER_TO_ETF_SLUG = {
     'SPY': 'spdr-s-p-500',
     'GLD': 'spdr-gold-trust',
+    'QQQ': 'invesco-qqq-trust-series-1',
+    'SOXX': 'ishares-p-hl-semi',
 }
 
 
@@ -378,6 +380,14 @@ class InvestingCrawler:
                     cutoff_time,
                     max_articles
                 )
+            if not news_items:
+                # 마지막으로 JS DOM 기반 파싱 시도 (ETF 페이지 등 data-test 없는 케이스)
+                news_items = self._parse_news_articles_js(
+                    ticker,
+                    company_name,
+                    cutoff_time,
+                    max_articles
+                )
             
             logger.info(f"Collected {len(news_items)} news items for {ticker} from investing.com")
             
@@ -485,6 +495,55 @@ class InvestingCrawler:
             logger.error(f"Error parsing news articles: {e}", exc_info=True)
         
         return news_items
+
+    def _parse_news_articles_js(
+        self,
+        ticker: str,
+        company_name: str,
+        cutoff_time: datetime,
+        max_articles: int = 10
+    ) -> List[Dict[str, str]]:
+        """
+        JavaScript DOM 조회 기반 파싱 (iframe 미사용 페이지용)
+        """
+        if not self.driver:
+            return []
+
+        try:
+            # 기사 제목/링크 추출
+            articles = self.driver.execute_script("""
+                const nodes = document.querySelectorAll('.articleItem a.title, article a.title');
+                return Array.from(nodes).slice(0, 20).map(a => ({
+                    title: a.textContent.trim(),
+                    href: a.href
+                }));
+            """)
+        except Exception:
+            return []
+
+        results: List[Dict[str, str]] = []
+        for art in articles:
+            title = art.get("title")
+            url = art.get("href")
+            if not title or not url:
+                continue
+            if url.startswith('/'):
+                url = f"{self.BASE_URL}{url}"
+
+            results.append({
+                'title': title,
+                'content': '',
+                'source_url': url,
+                'source_name': 'Investing.com',
+                'date': datetime.now(timezone.utc).isoformat(),
+                'ticker': ticker,
+                'company_name': company_name
+            })
+
+            if len(results) >= max_articles:
+                break
+
+        return results
 
     def _extract_article_data(
         self,
@@ -596,7 +655,17 @@ class InvestingCrawler:
             return []
 
         soup = BeautifulSoup(html, "lxml")
-        articles = soup.select('article[data-test="article-item"]')
+        selectors = [
+            'article[data-test="article-item"]',
+            'article.js-article-item',
+            '.articleItem',
+            'article[class*="article"]',
+        ]
+        articles = []
+        for sel in selectors:
+            articles = soup.select(sel)
+            if articles:
+                break
         news_items: List[Dict[str, str]] = []
 
         for article in articles:
