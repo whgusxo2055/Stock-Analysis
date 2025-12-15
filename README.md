@@ -105,6 +105,8 @@ docker-compose down
 - Flask 앱: http://localhost:5000
 - ElasticSearch: http://localhost:9200
 
+> ElasticSearch 데이터는 `stockanalysis_es-data` 볼륨에 저장됩니다. 컨테이너를 다시 만들 때도 동일한 볼륨 이름을 유지해 데이터가 보존되도록 합니다.
+
 ### 4. 로컬 개발 환경 실행
 
 ```bash
@@ -295,6 +297,9 @@ cp .env.production .env
 # - GMAIL_USERNAME: 이메일 발송 계정
 # - GMAIL_APP_PASSWORD: Gmail 앱 비밀번호
 # - SECRET_KEY: Flask 시크릿 키 (운영환경용)
+# 선택/튜닝 환경 변수:
+# - CRAWL_INTERVAL_HOURS: 크롤링 주기(기본 3시간)
+# - CRAWL_LOOKBACK_HOURS: 크롤링 조회 범위(기본 96시간, 주기보다 길게 유지 권장)
 ```
 
 자세한 운영 가이드는 [운영 핸드북](docs/OPERATIONS.md)을 참조하세요.

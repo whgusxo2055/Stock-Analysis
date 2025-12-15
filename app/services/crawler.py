@@ -15,6 +15,7 @@ from dateutil import parser as date_parser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -368,6 +369,15 @@ class InvestingCrawler:
             
             # 뉴스 아이템 파싱
             news_items = self._parse_news_articles(ticker, company_name, cutoff_time, max_articles)
+            if not news_items:
+                # Selenium 셀렉터가 실패하면 HTML 기반 파싱으로 재시도
+                news_items = self._parse_news_articles_bs4(
+                    self.driver.page_source,
+                    ticker,
+                    company_name,
+                    cutoff_time,
+                    max_articles
+                )
             
             logger.info(f"Collected {len(news_items)} news items for {ticker} from investing.com")
             
@@ -570,6 +580,64 @@ class InvestingCrawler:
         except Exception as e:
             logger.debug(f"Error extracting article data: {e}")
             return None
+
+    def _parse_news_articles_bs4(
+        self,
+        html: str,
+        ticker: str,
+        company_name: str,
+        cutoff_time: datetime,
+        max_articles: int = 10
+    ) -> List[Dict[str, str]]:
+        """
+        BeautifulSoup 기반 파싱 (Selenium 파싱 실패 시 백업 경로)
+        """
+        if not html:
+            return []
+
+        soup = BeautifulSoup(html, "lxml")
+        articles = soup.select('article[data-test="article-item"]')
+        news_items: List[Dict[str, str]] = []
+
+        for article in articles:
+            if len(news_items) >= max_articles:
+                break
+
+            title_elem = article.select_one('a[data-test="article-title-link"]')
+            if not title_elem:
+                continue
+
+            title = title_elem.get_text(strip=True)
+            url = title_elem.get("href")
+            if not title or not url:
+                continue
+            if url.startswith('/'):
+                url = f"{self.BASE_URL}{url}"
+
+            # 날짜 추출
+            date_elem = article.select_one('time') or article.select_one('span[data-test=\"article-publish-date\"]')
+            date_str = date_elem.get("datetime") if date_elem else None
+            if not date_str and date_elem:
+                date_str = date_elem.get_text(strip=True)
+            parsed_date = self._parse_date(date_str) if date_str else None
+
+            if parsed_date and parsed_date < cutoff_time:
+                continue
+
+            desc_elem = article.select_one('p[data-test=\"article-description\"], p')
+            content = desc_elem.get_text(strip=True) if desc_elem else ""
+
+            news_items.append({
+                'title': title,
+                'content': content,
+                'source_url': url,
+                'source_name': 'Investing.com',
+                'date': (parsed_date or datetime.now(timezone.utc)).isoformat(),
+                'ticker': ticker,
+                'company_name': company_name
+            })
+
+        return news_items
 
     def _extract_date(self, article) -> Optional[datetime]:
         """

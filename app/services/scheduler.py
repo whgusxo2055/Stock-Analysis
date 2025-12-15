@@ -93,14 +93,15 @@ class SchedulerService:
             return
 
         # 1. 크롤링 작업 - 3시간마다 (FR-013)
+        crawl_interval = max(Config.CRAWL_INTERVAL_HOURS, 1)
         SchedulerService._scheduler.add_job(
             func=self._run_crawl_job,
-            trigger=IntervalTrigger(hours=3),
+            trigger=IntervalTrigger(hours=crawl_interval),
             id='crawl_job',
             name='News Crawling Job',
             replace_existing=True
         )
-        logger.info("Registered crawl_job: every 3 hours")
+        logger.info(f"Registered crawl_job: every {crawl_interval} hours")
 
         # 2. 이메일 발송 체크 - 1시간마다 (FR-035)
         SchedulerService._scheduler.add_job(
@@ -144,6 +145,7 @@ class SchedulerService:
                     db_session=db.session,
                     news_storage=storage
                 )
+                crawl_window_hours = max(Config.CRAWL_LOOKBACK_HOURS, Config.CRAWL_INTERVAL_HOURS * 2)
                 
                 # 모든 관심 종목 조회 (활성 사용자의 종목만)
                 active_users = User.query.filter_by(is_active=True).all()
@@ -161,12 +163,15 @@ class SchedulerService:
                 for ticker in tickers:
                     try:
                         # 뉴스 크롤링 (crawl_ticker 사용)
-                        result = crawler.crawl_ticker(ticker)
+                        result = crawler.crawl_ticker(ticker, hours_ago=crawl_window_hours)
                         
                         if result.get('status') in ['SUCCESS', 'PARTIAL']:
                             count = result.get('count', 0)
                             total_news += count
-                            logger.info(f"Crawled {count} news for {ticker}")
+                            logger.info(
+                                f"Crawled {count} news for {ticker} "
+                                f"(lookback {crawl_window_hours}h)"
+                            )
                         else:
                             logger.warning(f"Crawl failed for {ticker}: {result.get('error')}")
                         

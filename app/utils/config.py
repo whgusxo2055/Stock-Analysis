@@ -45,6 +45,7 @@ class Config:
     
     # 스케줄러 설정
     CRAWL_INTERVAL_HOURS = int(os.getenv('CRAWL_INTERVAL_HOURS', '3'))
+    CRAWL_LOOKBACK_HOURS = int(os.getenv('CRAWL_LOOKBACK_HOURS', '96'))
     NEWS_RETENTION_DAYS = int(os.getenv('NEWS_RETENTION_DAYS', '730'))  # 2년
     
     # 로깅 설정
