@@ -62,10 +62,10 @@ def dashboard():
                 size=100
             )
             news_items = result.get('hits', []) if isinstance(result, dict) else []
+            stats['total'] = len(news_items)
 
             for item in news_items:
                 published = item.get('published_date') or item.get('date') or item.get('crawled_date')
-                stats['total'] += 1
                 sentiment_data = item.get('sentiment', {})
                 sentiment_label = sentiment_data.get('classification', sentiment_data.get('label', 'neutral'))
                 if sentiment_label:
