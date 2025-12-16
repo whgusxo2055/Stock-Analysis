@@ -254,7 +254,7 @@ function updateCrawlerStatus(data) {
     content.innerHTML = `
         <div class="status-info-row">
             <span class="status-label">마지막 실행</span>
-            <span class="status-value">${data.last_run ? new Date(data.last_run).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '없음'}</span>
+            <span class="status-value">${data.last_run ? new Date(data.last_run).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }) : '없음'}</span>
         </div>
         <div class="status-info-row">
             <span class="status-label">수집된 뉴스</span>
@@ -286,7 +286,7 @@ function updateEmailStatus(data) {
     content.innerHTML = `
         <div class="status-info-row">
             <span class="status-label">마지막 발송</span>
-            <span class="status-value">${data.last_sent ? new Date(data.last_sent).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '없음'}</span>
+            <span class="status-value">${data.last_sent ? new Date(data.last_sent).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }) : '없음'}</span>
         </div>
         <div class="status-info-row">
             <span class="status-label">발송 대기 사용자</span>
@@ -317,7 +317,7 @@ function updateSchedulerStatus(data) {
         jobsHtml = data.jobs.map(job => `
             <div class="status-info-row">
                 <span class="status-label">${job.name || job.id}</span>
-                <span class="status-value">${job.next_run ? new Date(job.next_run).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '예정 없음'}</span>
+                <span class="status-value">${job.next_run ? new Date(job.next_run).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }) : '예정 없음'}</span>
             </div>
         `).join('');
     } else {
