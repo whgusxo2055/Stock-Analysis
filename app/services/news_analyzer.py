@@ -108,16 +108,16 @@ class NewsAnalyzer:
             # 응답 파싱
             choice = response.choices[0]
             result_text = (choice.message.content or "").strip()
-            logger.debug(f"ChatGPT raw response: {result_text[:200]}...")
+            finish_reason = getattr(choice, "finish_reason", None)
+            usage = getattr(response, "usage", None)
+            logger.debug(
+                "ChatGPT raw response: %s...",
+                result_text[:200] if result_text else "<empty>"
+            )
             
             if not result_text:
                 logger.warning(
-                    "Empty response from ChatGPT",
-                    extra={
-                        "openai_model": response.model,
-                        "finish_reason": choice.finish_reason,
-                        "usage": getattr(response, "usage", None)
-                    }
+                    f"Empty response from ChatGPT (model={response.model}, finish_reason={finish_reason}, usage={usage})"
                 )
                 return self._generate_fallback_analysis(title, content)
             
@@ -295,6 +295,24 @@ Please provide the response in JSON format:
         
         logger.debug("Using fallback analysis")
         
+        # 간단한 키워드 기반 감성 (제목+본문)
+        text_lower = f"{title} {content}".lower()
+        positive_keywords = ['beat', 'growth', 'surge', 'gain', 'soar', 'strong', 'record', 'upgrade', 'outperform', 'buy']
+        negative_keywords = ['miss', 'drop', 'fall', 'decline', 'loss', 'down', 'weak', 'cut', 'downgrade', 'sell', 'bankruptcy']
+        score = 0
+        for kw in positive_keywords:
+            if kw in text_lower:
+                score += 1
+        for kw in negative_keywords:
+            if kw in text_lower:
+                score -= 1
+        if score > 0:
+            classification = 'positive'
+        elif score < 0:
+            classification = 'negative'
+        else:
+            classification = 'neutral'
+
         return {
             'summary': {
                 'ko': fallback_summary,
@@ -303,8 +321,8 @@ Please provide the response in JSON format:
                 'ja': fallback_summary
             },
             'sentiment': {
-                'classification': 'Neutral',
-                'score': 0
+                'classification': classification,
+                'score': score
             }
         }
 
