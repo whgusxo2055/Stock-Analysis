@@ -5,7 +5,7 @@
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 import atexit
 
@@ -16,7 +16,7 @@ from apscheduler.jobstores.base import JobLookupError
 from flask import Flask
 
 from app.extensions import db
-from app.models.models import User, UserSetting, UserStock, CrawlLog
+from app.models.models import User, UserSetting, UserStock, CrawlLog, KST
 from app.utils.config import Config
 
 logger = logging.getLogger(__name__)
@@ -226,7 +226,7 @@ class SchedulerService:
                 storage = NewsStorageService()
                 
                 # 현재 시간 확인 (한국 시간)
-                now = datetime.now()
+                now = datetime.now(KST)
                 current_time = dt_time(now.hour, 0)  # time 객체로 변환 (분은 0)
                 
                 logger.info(f"Checking users for notification time: {current_time.strftime('%H:%M')}")
@@ -346,7 +346,7 @@ class SchedulerService:
                 storage = NewsStorageService()
                 
                 # 2년 전 날짜 계산
-                cutoff_date = datetime.now() - timedelta(days=730)  # 약 2년
+                cutoff_date = datetime.now(KST) - timedelta(days=730)  # 약 2년
                 
                 # 오래된 뉴스 삭제
                 deleted_count = storage.delete_old_news(cutoff_date)
@@ -373,7 +373,7 @@ class SchedulerService:
         try:
             from app.models.models import EmailLog
             
-            cutoff = datetime.now() - timedelta(days=days)
+            cutoff = datetime.now(KST) - timedelta(days=days)
             deleted = EmailLog.query.filter(EmailLog.sent_at < cutoff).delete()
             db.session.commit()
             
@@ -392,7 +392,7 @@ class SchedulerService:
             days: 보관 일수
         """
         try:
-            cutoff = datetime.now() - timedelta(days=days)
+            cutoff = datetime.now(KST) - timedelta(days=days)
             deleted = CrawlLog.query.filter(CrawlLog.crawled_at < cutoff).delete()
             db.session.commit()
             

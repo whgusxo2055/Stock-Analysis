@@ -16,7 +16,7 @@ from flask import render_template, current_app
 from jinja2 import Environment, FileSystemLoader
 
 from app.utils.config import Config
-from app.models.models import User, UserSetting, EmailLog
+from app.models.models import User, UserSetting, EmailLog, KST
 from app.extensions import db
 
 logger = logging.getLogger(__name__)
@@ -161,7 +161,7 @@ class EmailSender:
         """
         try:
             # 현재 날짜
-            today = datetime.now().strftime('%Y-%m-%d')
+            today = datetime.now(KST).strftime('%Y-%m-%d')
             
             # 이메일 제목 (FR-033)
             subject = f"[Stock Report] {today} - {user.username}님의 관심 종목 분석"
@@ -379,7 +379,8 @@ class EmailSender:
                 user_id=user_id,
                 status=status,
                 news_count=news_count,
-                error_message=error_message
+                error_message=error_message,
+                sent_at=datetime.now(KST)
             )
             db.session.add(log)
             db.session.commit()
@@ -405,7 +406,7 @@ class EmailSender:
         Returns:
             (성공 여부, 에러 메시지)
         """
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = datetime.now(KST).strftime('%Y-%m-%d')
         subject = f"[Stock Report] {today} - 새로운 뉴스가 없습니다"
         
         messages = {
@@ -492,7 +493,7 @@ class EmailSender:
     </div>
     
     <div style="text-align: center; padding: 20px; color: #999; font-size: 14px;">
-        <p>발송 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p>발송 시각: {datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')}</p>
         <p>Stock Analysis Service</p>
     </div>
 </body>

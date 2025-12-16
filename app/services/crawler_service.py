@@ -261,9 +261,10 @@ class CrawlerService:
             error_message: 에러 메시지 (있을 경우)
         """
         try:
+            from app.models.models import KST
             log = CrawlLog(
                 ticker_symbol=ticker,
-                crawled_at=datetime.now(),
+                crawled_at=datetime.now(KST),
                 status=status,
                 news_count=news_count,
                 error_message=error_message
