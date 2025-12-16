@@ -179,6 +179,7 @@ class ElasticsearchClient:
     def search_news(
         self,
         ticker_symbol: Optional[str] = None,
+        ticker_symbols: Optional[List[str]] = None,
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
         sentiment: Optional[str] = None,
@@ -201,7 +202,9 @@ class ElasticsearchClient:
         """
         query = {"bool": {"must": []}}
         
-        if ticker_symbol:
+        if ticker_symbols:
+            query["bool"]["must"].append({"terms": {"ticker_symbol": ticker_symbols}})
+        elif ticker_symbol:
             query["bool"]["must"].append({"term": {"ticker_symbol": ticker_symbol}})
         
         if sentiment:

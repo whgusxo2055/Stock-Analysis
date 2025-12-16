@@ -157,6 +157,7 @@ class NewsStorageAdapter:
     def search_news(
         self,
         ticker_symbol: Optional[str] = None,
+        ticker_symbols: Optional[List[str]] = None,
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
         sentiment: Optional[str] = None,
@@ -202,6 +203,7 @@ class NewsStorageAdapter:
             else:
                 response = self.es_client.search_news(
                     ticker_symbol=ticker_symbol,
+                    ticker_symbols=ticker_symbols,
                     from_date=from_date,
                     to_date=to_date,
                     sentiment=sentiment,
@@ -210,7 +212,11 @@ class NewsStorageAdapter:
                 )
             
             total = response['hits']['total']['value']
-            hits = [hit['_source'] for hit in response['hits']['hits']]
+            hits = []
+            for hit in response['hits']['hits']:
+                doc = hit.get('_source', {})
+                doc['_id'] = hit.get('_id')
+                hits.append(doc)
             
             logger.info(f"Search completed: {total} results found")
             

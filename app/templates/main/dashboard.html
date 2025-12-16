@@ -121,9 +121,16 @@
                             <small class="text-muted">
                                 <i class="bi bi-clock"></i> {{ item.published_date[:10] if item.published_date else 'N/A' }}
                             </small>
-                            <a href="{{ item.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                원문 보기 <i class="bi bi-box-arrow-up-right"></i>
-                            </a>
+                            <div class="d-flex gap-2">
+                                {% if item.news_id %}
+                                <a href="{{ url_for('news.detail', news_id=item.news_id) }}" class="btn btn-sm btn-outline-secondary">
+                                    상세보기
+                                </a>
+                                {% endif %}
+                                <a href="{{ item.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    원문 보기 <i class="bi bi-box-arrow-up-right"></i>
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -49,41 +49,36 @@ def dashboard():
     }
     
     try:
-        # 최근 7일 뉴스 (뉴스가 충분히 표시되도록)
-        # published_date 필드가 채워지지 않은 경우 대비
+        # 최근 30일 뉴스, 관심 종목 전체 조회
         from datetime import timezone
-        from_date = datetime.now(timezone.utc) - timedelta(days=7)
-        
-        for user_stock, stock_info in user_stocks:
-            ticker = user_stock.ticker_symbol
-            
-            # 종목별 최신 뉴스 5개
+        from_date = datetime.now(timezone.utc) - timedelta(days=30)
+        ticker_list = [us.ticker_symbol for us, _ in user_stocks]
+        ticker_company = {us.ticker_symbol: stock.company_name for us, stock in user_stocks}
+
+        if ticker_list:
             result = storage.search_news(
-                ticker_symbol=ticker,
+                ticker_symbols=ticker_list,
                 from_date=from_date.isoformat(),
-                size=5
+                size=100
             )
-            
-            # search_news는 Dict를 반환 (hits 키에 뉴스 리스트)
             news_items = result.get('hits', []) if isinstance(result, dict) else []
-            
+
             for item in news_items:
-                published = item.get('published_date') or item.get('date')
+                published = item.get('published_date') or item.get('date') or item.get('crawled_date')
                 stats['total'] += 1
                 sentiment_data = item.get('sentiment', {})
-                # ES 저장 필드는 'classification' (positive/negative/neutral)
                 sentiment_label = sentiment_data.get('classification', sentiment_data.get('label', 'neutral'))
                 if sentiment_label:
                     sentiment_label = sentiment_label.lower()
-                
                 if sentiment_label in ['positive', 'negative', 'neutral']:
                     stats[sentiment_label] = stats.get(sentiment_label, 0) + 1
                 else:
                     stats['neutral'] = stats.get('neutral', 0) + 1
-                
+
+                ticker = item.get('ticker_symbol') or item.get('ticker')
                 recent_news.append({
                     'ticker': ticker,
-                    'company_name': stock_info.company_name,
+                    'company_name': ticker_company.get(ticker, ''),
                     'title': item.get('title', 'N/A'),
                     'summary': item.get('summary_ko', item.get('summary', {}).get('ko', '')) or item.get('content', ''),
                     'url': item.get('source_url') or item.get('url', '#'),
@@ -92,10 +87,11 @@ def dashboard():
                     'sentiment_label': sentiment_label,
                     'news_id': item.get('news_id', item.get('_id'))
                 })
-        
-        # 날짜순 정렬 (None 값 처리)
-        recent_news.sort(key=lambda x: x.get('published_date') or '0', reverse=True)
-        
+
+            recent_news.sort(key=lambda x: x.get('published_date') or '0', reverse=True)
+        else:
+            logger.info("No watchlist tickers for dashboard")
+
     except Exception as e:
         logger.error(f"Failed to load dashboard data: {e}", exc_info=True)
     

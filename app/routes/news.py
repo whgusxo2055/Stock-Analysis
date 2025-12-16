@@ -228,7 +228,7 @@ def get_history():
             to_date=to_date,
             sentiment=sentiment or None,
             size=per_page,
-            from_=(page - 1) * per_page
+            page=page
         )
         
         # 전체 개수 (간이 방식)
