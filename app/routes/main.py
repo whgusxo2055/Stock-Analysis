@@ -50,7 +50,7 @@ def dashboard():
     
     try:
         # 최근 7일 뉴스 (뉴스가 충분히 표시되도록)
-        # UTC 기준으로 계산 (ES에 저장된 published_date가 UTC임)
+        # published_date 필드가 채워지지 않은 경우 대비
         from datetime import timezone
         from_date = datetime.now(timezone.utc) - timedelta(days=7)
         
@@ -68,6 +68,7 @@ def dashboard():
             news_items = result.get('hits', []) if isinstance(result, dict) else []
             
             for item in news_items:
+                published = item.get('published_date') or item.get('date')
                 stats['total'] += 1
                 sentiment_data = item.get('sentiment', {})
                 # ES 저장 필드는 'classification' (positive/negative/neutral)
@@ -84,9 +85,9 @@ def dashboard():
                     'ticker': ticker,
                     'company_name': stock_info.company_name,
                     'title': item.get('title', 'N/A'),
-                    'summary': item.get('summary_ko', item.get('summary', {}).get('ko', '')),
-                    'url': item.get('url', '#'),
-                    'published_date': item.get('published_at') or item.get('published_date'),
+                    'summary': item.get('summary_ko', item.get('summary', {}).get('ko', '')) or item.get('content', ''),
+                    'url': item.get('source_url') or item.get('url', '#'),
+                    'published_date': published,
                     'sentiment_score': sentiment_data.get('score', 0),
                     'sentiment_label': sentiment_label,
                     'news_id': item.get('news_id', item.get('_id'))

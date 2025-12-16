@@ -178,7 +178,7 @@ def get_latest():
             'summary': item.get('summary', {}),
             'source_url': item.get('source_url') or item.get('url', ''),
             'source_name': item.get('source_name', 'Unknown'),
-            'published_date': item.get('published_date'),
+            'published_date': item.get('published_date') or item.get('date') or item.get('crawled_date'),
             'sentiment': item.get('sentiment', {})
         } for item in news]
         
@@ -452,4 +452,3 @@ def api_statistics():
             'success': False,
             'error': '통계 조회에 실패했습니다.'
         }), 500
-
