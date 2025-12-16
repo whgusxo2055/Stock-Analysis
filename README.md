@@ -102,10 +102,10 @@ docker-compose down
 ```
 
 서비스가 실행되면:
-- Flask 앱: http://localhost:5000
+- Flask 앱: http://localhost
 - ElasticSearch: http://localhost:9200
 
-> ElasticSearch 데이터는 `stockanalysis_es-data` 볼륨에 저장됩니다. 컨테이너를 다시 만들 때도 동일한 볼륨 이름을 유지해 데이터가 보존되도록 합니다.
+> ElasticSearch 데이터는 `stockanalysis_es-data` 외부 볼륨에 저장됩니다. 컨테이너를 다시 만들 때도 동일한 볼륨 이름을 유지해 데이터가 보존되도록 합니다.
 
 ### 4. 로컬 개발 환경 실행
 
@@ -294,12 +294,15 @@ cp .env.production .env
 
 # 필수 환경 변수:
 # - OPENAI_API_KEY: OpenAI API 키
+# - OPENAI_MODEL: 지원 모델 (gpt-4o-mini 권장, gpt-5 계열은 빈 응답 가능)
 # - GMAIL_USERNAME: 이메일 발송 계정
 # - GMAIL_APP_PASSWORD: Gmail 앱 비밀번호
 # - SECRET_KEY: Flask 시크릿 키 (운영환경용)
 # 선택/튜닝 환경 변수:
-# - CRAWL_INTERVAL_HOURS: 크롤링 주기(기본 3시간)
+# - CRAWL_INTERVAL_HOURS: 크롤링 주기(기본 24시간)
 # - CRAWL_LOOKBACK_HOURS: 크롤링 조회 범위(기본 96시간, 주기보다 길게 유지 권장)
+# - CRAWL_TIMEOUT: 크롤링 타임아웃(기본 45초)
+# - ENABLE_SCHEDULER / SCHEDULER_MAIN: 스케줄러 활성화 플래그
 ```
 
 자세한 운영 가이드는 [운영 핸드북](docs/OPERATIONS.md)을 참조하세요.
