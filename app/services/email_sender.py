@@ -12,8 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import List, Dict, Optional, Tuple
 
-from flask import render_template, current_app
-from jinja2 import Environment, FileSystemLoader
+from flask import render_template
 
 from app.utils.config import Config
 from app.models.models import User, UserSetting, EmailLog, KST
