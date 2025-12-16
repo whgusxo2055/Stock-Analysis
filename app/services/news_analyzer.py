@@ -35,6 +35,11 @@ class NewsAnalyzer:
             api_key: OpenAI API 키 (없으면 환경변수에서 로드)
         """
         self.api_key = api_key or Config.OPENAI_API_KEY
+        self.model = Config.OPENAI_MODEL or "gpt-4o-mini"
+        # gpt-5 계열은 빈 응답 사례가 있어 기본 모델로 강제
+        if self.model.startswith("gpt-5"):
+            logger.warning(f"Unsupported/unstable model '{self.model}' detected. Falling back to gpt-4o-mini.")
+            self.model = "gpt-4o-mini"
         
         if not self.api_key:
             logger.warning("OpenAI API key not configured")
@@ -91,7 +96,7 @@ class NewsAnalyzer:
             logger.debug(f"Analyzing news for {ticker}: {title[:50]}...")
             
             response = self.client.chat.completions.create(
-                model=Config.OPENAI_MODEL,
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
