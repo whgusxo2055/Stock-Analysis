@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  flask-app:
+    build: .
+    container_name: stock-analysis-app
+    ports:
+      - "80:5000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./flask_session:/app/flask_session
+      - ./instance:/app/instance
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=sqlite:////app/instance/stock_analysis.db
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - ENABLE_SCHEDULER=true
+      - SCHEDULER_MAIN=true
+    env_file:
+      - .env
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - stock-analysis-network
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
+    container_name: stock-analysis-es
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    networks:
+      - stock-analysis-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  stock-analysis-network:
+    driver: bridge
+
+volumes:
+  es-data:
+    external: true
+    name: stockanalysis_es-data
