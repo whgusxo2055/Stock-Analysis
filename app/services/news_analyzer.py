@@ -106,11 +106,19 @@ class NewsAnalyzer:
             )
             
             # 응답 파싱
-            result_text = response.choices[0].message.content
+            choice = response.choices[0]
+            result_text = (choice.message.content or "").strip()
             logger.debug(f"ChatGPT raw response: {result_text[:200]}...")
             
-            if not result_text or not result_text.strip():
-                logger.warning("Empty response from ChatGPT")
+            if not result_text:
+                logger.warning(
+                    "Empty response from ChatGPT",
+                    extra={
+                        "openai_model": response.model,
+                        "finish_reason": choice.finish_reason,
+                        "usage": getattr(response, "usage", None)
+                    }
+                )
                 return self._generate_fallback_analysis(title, content)
             
             # 마크다운 코드 블록 제거 (```json ... ```)
