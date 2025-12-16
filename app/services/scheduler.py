@@ -183,7 +183,8 @@ class SchedulerService:
                 crawl_log = CrawlLog(
                     ticker_symbol=','.join(tickers),
                     status='success' if total_news > 0 else 'no_news',
-                    news_count=total_news
+                    news_count=total_news,
+                    crawled_at=datetime.now(KST)
                 )
                 db.session.add(crawl_log)
                 db.session.commit()
@@ -198,7 +199,78 @@ class SchedulerService:
                         ticker_symbol='ALL',
                         status='error',
                         news_count=0,
-                        error_message=str(e)[:500]
+                        error_message=str(e)[:500],
+                        crawled_at=datetime.now(KST)
+                    )
+                    db.session.add(crawl_log)
+                    db.session.commit()
+                except:
+                    pass
+
+    def run_crawl_for_user(self, tickers: List[str]) -> None:
+        """
+        특정 사용자(지정된 티커 리스트)에 대해 뉴스 수집 실행
+        """
+        logger.info(f"Starting user-triggered crawl for tickers: {tickers}")
+        
+        if SchedulerService._app is None:
+            logger.error("Flask app not available")
+            return
+
+        with SchedulerService._app.app_context():
+            try:
+                from app.services.crawler_service import CrawlerService
+                from app.services.news_storage import NewsStorageAdapter
+                
+                storage = NewsStorageAdapter()
+                crawler = CrawlerService(
+                    db_session=db.session,
+                    news_storage=storage
+                )
+                crawl_window_hours = max(Config.CRAWL_LOOKBACK_HOURS, Config.CRAWL_INTERVAL_HOURS * 2)
+
+                tickers = list(set(tickers))
+                if not tickers:
+                    logger.info("No tickers provided for user crawl")
+                    return
+
+                total_news = 0
+                for ticker in tickers:
+                    try:
+                        result = crawler.crawl_ticker(ticker, hours_ago=crawl_window_hours)
+                        if result.get('status') in ['SUCCESS', 'PARTIAL']:
+                            count = result.get('count', 0)
+                            total_news += count
+                            logger.info(
+                                f"Crawled {count} news for {ticker} "
+                                f"(lookback {crawl_window_hours}h)"
+                            )
+                        else:
+                            logger.warning(f"Crawl failed for {ticker}: {result.get('error')}")
+                    except Exception as e:
+                        logger.error(f"Error crawling {ticker}: {e}")
+                        continue
+
+                crawl_log = CrawlLog(
+                    ticker_symbol=','.join(tickers),
+                    status='success' if total_news > 0 else 'no_news',
+                    news_count=total_news,
+                    crawled_at=datetime.now(KST)
+                )
+                db.session.add(crawl_log)
+                db.session.commit()
+
+                logger.info(f"User-triggered crawl completed: {total_news} news items stored")
+
+            except Exception as e:
+                logger.error(f"User-triggered crawl failed: {e}")
+                try:
+                    crawl_log = CrawlLog(
+                        ticker_symbol=','.join(tickers),
+                        status='error',
+                        news_count=0,
+                        error_message=str(e)[:500],
+                        crawled_at=datetime.now(KST)
                     )
                     db.session.add(crawl_log)
                     db.session.commit()

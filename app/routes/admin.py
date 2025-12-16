@@ -275,30 +275,34 @@ def api_test_email():
 @admin_required
 def api_trigger_crawl():
     """
-    수동 크롤링 트리거 API
+    수동 크롤링 트리거 API (현재 로그인 관리자 관심종목 기준)
     """
     try:
         from app.services.scheduler import SchedulerService
         from threading import Thread
         
+        # 로그인 사용자 관심종목만 크롤
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'success': False, 'error': '인증 필요'}), 401
+        
+        user_stocks = UserStock.query.filter_by(user_id=current_user.id).all()
+        tickers = list({s.ticker_symbol for s in user_stocks})
+        
+        if not tickers:
+            return jsonify({'success': False, 'error': '관심 종목이 없습니다.'}), 400
+        
         scheduler = SchedulerService()
-        if SchedulerService._scheduler is None:
-            return jsonify({
-                'success': False,
-                'error': '스케줄러가 초기화되지 않았습니다.'
-            }), 500
+
+        def run_crawl_user():
+            scheduler.run_crawl_for_user(tickers)
         
-        # 별도 스레드에서 크롤링 작업 실행
-        def run_crawl():
-            scheduler._run_crawl_job()
+        Thread(target=run_crawl_user).start()
         
-        thread = Thread(target=run_crawl)
-        thread.start()
-        
-        logger.info(f"Crawl job triggered manually by admin {session.get('username')}")
+        logger.info(f"Crawl job (user-specific) triggered by admin {session.get('username')} for tickers {tickers}")
         return jsonify({
             'success': True,
-            'message': '크롤링 작업이 시작되었습니다. 완료까지 몇 분이 소요될 수 있습니다.'
+            'message': f'크롤링이 시작되었습니다. 대상 티커: {tickers}'
         })
             
     except Exception as e:
