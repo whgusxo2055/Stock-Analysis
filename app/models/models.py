@@ -2,7 +2,9 @@
 SQLAlchemy 데이터베이스 모델
 SRS Section 7.1 참조
 """
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+KST = timezone(timedelta(hours=9))
 from app.extensions import db
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -17,8 +19,8 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(KST), nullable=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(KST), onupdate=lambda: datetime.now(KST), nullable=False)
     
     # 관계
     settings = db.relationship('UserSetting', back_populates='user', uselist=False, cascade='all, delete-orphan')
@@ -58,8 +60,8 @@ class UserSetting(db.Model):
     language = db.Column(db.String(10), default='ko', nullable=False)  # ko, en, es, ja
     notification_time = db.Column(db.Time, nullable=False)  # 예: 09:00:00
     is_notification_enabled = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(KST), nullable=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(KST), onupdate=lambda: datetime.now(KST), nullable=False)
     
     # 관계
     user = db.relationship('User', back_populates='settings')
@@ -89,7 +91,7 @@ class StockMaster(db.Model):
     company_name_ko = db.Column(db.String(200), nullable=True)  # 한국어 회사명
     exchange = db.Column(db.String(50))  # NYSE, NASDAQ, etc.
     sector = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(KST), nullable=False)
     
     # 관계
     user_stocks = db.relationship('UserStock', back_populates='stock')
@@ -145,7 +147,7 @@ class EmailLog(db.Model):
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    sent_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    sent_at = db.Column(db.DateTime, default=lambda: datetime.now(KST), nullable=False)
     status = db.Column(db.String(20), nullable=False)  # success, failed
     error_message = db.Column(db.Text)
     news_count = db.Column(db.Integer, default=0, nullable=False)
@@ -174,7 +176,7 @@ class CrawlLog(db.Model):
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     ticker_symbol = db.Column(db.String(10))
-    crawled_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    crawled_at = db.Column(db.DateTime, default=lambda: datetime.now(KST), nullable=False)
     status = db.Column(db.String(20), nullable=False)  # success, failed
     news_count = db.Column(db.Integer, default=0, nullable=False)
     error_message = db.Column(db.Text)
