@@ -215,6 +215,7 @@ class CrawlerService:
             if url and url not in existing_urls:
                 # ticker와 company_name 추가
                 item['ticker'] = ticker
+                item['ticker_symbol'] = ticker  # ES 검색 호환용
                 # ES 호환을 위해 url 필드도 채워둠
                 item.setdefault('url', url)
                 # published_date 필드 보정 (크롤러는 date 키 사용)
