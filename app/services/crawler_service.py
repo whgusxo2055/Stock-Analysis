@@ -217,6 +217,13 @@ class CrawlerService:
                 item['ticker'] = ticker
                 # ES 호환을 위해 url 필드도 채워둠
                 item.setdefault('url', url)
+                # published_date 필드 보정 (크롤러는 date 키 사용)
+                if item.get('date') and not item.get('published_date'):
+                    item['published_date'] = item['date']
+                # 기본값: 수집 시각 KST 기준
+                if not item.get('published_date'):
+                    from app.models.models import KST
+                    item['published_date'] = datetime.now(KST).isoformat()
                 if company_name:
                     item['company_name'] = company_name
                 unique_items.append(item)
