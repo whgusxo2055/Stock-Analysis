@@ -32,8 +32,10 @@
                 </div>
             </div>
             
-            <div class="text-center mt-3 text-muted">
-                <small>관리자에게 계정 발급을 요청하세요</small>
+            <div class="text-center mt-3">
+                <a href="{{ url_for('auth.register') }}" class="text-decoration-none">
+                    계정이 없으신가요? 회원가입
+                </a>
             </div>
         </div>
     </div>
