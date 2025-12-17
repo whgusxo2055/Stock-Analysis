@@ -45,7 +45,8 @@ services:
       - ./instance:/app/instance
     environment:
       - FLASK_ENV=production
-      - DATABASE_URL=sqlite:////app/instance/stock_analysis.db
+      # 운영 DB는 프로젝트 루트의 ./data/app.db 를 사용
+      - DATABASE_URL=sqlite:////app/data/app.db
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - ENABLE_SCHEDULER=true
       - SCHEDULER_MAIN=true
